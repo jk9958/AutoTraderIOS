@@ -1,32 +1,14 @@
-//
-//  AutoTraderIOSApp.swift
-//  AutoTraderIOS
-//
-//  Created by DakshinAJK on 21/05/2026.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct AutoTraderIOSApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @StateObject private var appState = AppState()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootTabView()
+                .environmentObject(appState)
+                .preferredColorScheme(.dark)
         }
-        .modelContainer(sharedModelContainer)
     }
 }
