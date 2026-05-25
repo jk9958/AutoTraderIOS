@@ -1,6 +1,7 @@
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+**/*.xcuserstate
 *.xcworkspace/contents.xcworkspacedata
 DerivedData/
 *.ipa
@@ -17,3 +18,6 @@ Pods/
 
 # macOS
 .DS_Store
+
+# Migration plans (local reference only)
+HTTPS_MIGRATION_PLAN.md
