@@ -25,7 +25,7 @@ final class AppState: ObservableObject {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return trimmed }
         if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") { return trimmed }
-        return "http://" + trimmed
+        return "https://" + trimmed
     }
 
     @Published private(set) var client: APIClient
@@ -35,7 +35,7 @@ final class AppState: ObservableObject {
 
     init() {
         let stored = UserDefaults.standard.string(forKey: "serverBaseURL") ?? ""
-        let url = stored.isEmpty ? "http://100.91.5.110:8000" : Self.sanitizeURL(stored)
+        let url = stored.isEmpty ? "https://100.91.5.110:8000" : Self.sanitizeURL(stored)
         self.serverBaseURL = url
         self.client = APIClient(baseURL: url)
         startLifecycleObservers()
