@@ -10,6 +10,17 @@ struct ServerStatus: Codable {
     let paperTrading: String
     let nextExpiry: String
 
+    enum CodingKeys: String, CodingKey {
+        case running
+        case engine
+        case startedAt = "started_at"
+        case exitCode = "exit_code"
+        case logLines = "log_lines"
+        case tokens
+        case paperTrading = "paper_trading"
+        case nextExpiry = "next_expiry"
+    }
+
     var isPaperTrading: Bool { paperTrading == "true" }
 
     func tokenColor(for broker: String) -> String {

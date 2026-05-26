@@ -15,6 +15,11 @@ struct TokenResponse: Codable {
     let status: String
     let broker: String
     let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case status, broker
+        case updatedAt = "updated_at"
+    }
 }
 
 struct HealthResponse: Codable {
