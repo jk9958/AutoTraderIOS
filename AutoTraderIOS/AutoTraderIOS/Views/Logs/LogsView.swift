@@ -10,19 +10,32 @@ struct LogsView: View {
                 Theme.background.ignoresSafeArea()
                 VStack(spacing: 0) {
                     // Controls bar
-                    HStack {
+                    HStack(spacing: 12) {
                         if !vm.source.isEmpty {
-                            Text("Source: \(vm.source)")
-                                .font(.caption)
-                                .foregroundColor(Theme.textSecondary)
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.text")
+                                    .font(.caption)
+                                    .foregroundColor(Theme.textSecondary)
+                                Text(vm.source)
+                                    .font(.caption.bold())
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Theme.glassAccent)
+                            .cornerRadius(6)
                         }
                         Spacer()
-                        Toggle("Auto-scroll", isOn: $vm.autoscroll)
-                            .toggleStyle(SwitchToggleStyle(tint: Theme.green))
-                            .labelsHidden()
-                        Text("Auto")
-                            .font(.caption)
-                            .foregroundColor(vm.autoscroll ? Theme.green : Theme.textSecondary)
+
+                        HStack(spacing: 8) {
+                            Toggle("", isOn: $vm.autoscroll)
+                                .toggleStyle(SwitchToggleStyle(tint: Theme.green))
+                                .scaleEffect(0.8, anchor: .center)
+
+                            Text("Auto")
+                                .font(.caption.bold())
+                                .foregroundColor(vm.autoscroll ? Theme.green : Theme.textSecondary)
+                        }
 
                         Picker("Lines", selection: $vm.lineCount) {
                             Text("50").tag(50)
@@ -32,18 +45,29 @@ struct LogsView: View {
                         }
                         .pickerStyle(.menu)
                         .tint(Theme.blue)
+                        .font(.caption.bold())
                         .onChange(of: vm.lineCount) { _, _ in
                             vm.refresh(client: appState.client)
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Theme.cardBg)
+                    .padding(.vertical, 10)
+                    .background(
+                        ZStack {
+                            Theme.glassBg
+                            Divider().background(Color.white.opacity(0.08))
+                        }
+                    )
 
                     if vm.isLoading && vm.lines.isEmpty {
                         Spacer()
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.blue))
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .tint(Theme.blue)
+                            Text("Loading logs…")
+                                .font(.caption)
+                                .foregroundColor(Theme.textSecondary)
+                        }
                         Spacer()
                     } else if vm.lines.isEmpty {
                         Spacer()
@@ -51,24 +75,44 @@ struct LogsView: View {
                             Image(systemName: "doc.text")
                                 .font(.system(size: 40))
                                 .foregroundColor(Theme.textSecondary)
-                            Text("No logs yet.")
+                            Text("No logs yet")
+                                .font(.headline)
+                                .foregroundColor(Theme.textPrimary)
+                            Text("Engine activity will appear here")
+                                .font(.caption)
                                 .foregroundColor(Theme.textSecondary)
                         }
                         Spacer()
                     } else {
                         ScrollViewReader { proxy in
                             ScrollView {
-                                LazyVStack(alignment: .leading, spacing: 2) {
-                                    ForEach(Array(vm.lines.enumerated()), id: \.offset) { idx, line in
-                                        Text(line)
-                                            .font(.system(size: 11, design: .monospaced))
-                                            .foregroundColor(lineColor(line))
-                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    LazyVStack(alignment: .leading, spacing: 0) {
+                                        ForEach(Array(vm.lines.enumerated()), id: \.offset) { idx, line in
+                                            HStack(spacing: 8) {
+                                                Text(String(format: "%04d", idx + 1))
+                                                    .font(.system(size: 10, design: .monospaced))
+                                                    .foregroundColor(Theme.textSecondary.opacity(0.5))
+                                                    .frame(width: 30, alignment: .trailing)
+
+                                                Text(line)
+                                                    .font(.system(size: 11, design: .monospaced))
+                                                    .foregroundColor(lineColor(line))
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                                Spacer()
+                                            }
+                                            .padding(.vertical, 6)
+                                            .padding(.horizontal, 10)
+                                            .background(idx % 2 == 0 ? Color.clear : Color.white.opacity(0.02))
                                             .id(idx)
+                                        }
                                     }
                                 }
-                                .padding(12)
                             }
+                            .background(Theme.glassBg)
+                            .cornerRadius(Theme.radius)
+                            .padding(12)
                             .onChange(of: vm.lines.count) { _, _ in
                                 if vm.autoscroll, let last = vm.lines.indices.last {
                                     withAnimation { proxy.scrollTo(last, anchor: .bottom) }
@@ -78,10 +122,18 @@ struct LogsView: View {
                     }
 
                     if let err = vm.error {
-                        Text(err)
-                            .font(.caption)
-                            .foregroundColor(Theme.red)
-                            .padding(8)
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(Theme.red)
+                            Text(err)
+                                .font(.caption)
+                                .foregroundColor(Theme.red)
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(Theme.red.opacity(0.12))
+                        .cornerRadius(8)
+                        .padding(12)
                     }
                 }
             }

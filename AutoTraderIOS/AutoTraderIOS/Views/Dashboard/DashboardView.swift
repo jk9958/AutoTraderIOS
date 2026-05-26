@@ -9,7 +9,7 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
+            ZStack {
                 Theme.background.ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -27,15 +27,26 @@ struct DashboardView: View {
 
                     // LIVE/PAPER banner
                     if let status = appState.serverStatus {
-                        HStack {
-                            Spacer()
-                            Text(status.isPaperTrading ? "PAPER TRADING" : "⚡ LIVE TRADING ⚡")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.white)
+                        HStack(spacing: 8) {
+                            Image(systemName: status.isPaperTrading ? "book.fill" : "bolt.fill")
+                                .font(.caption.bold())
+                            Text(status.isPaperTrading ? "PAPER TRADING" : "LIVE TRADING")
+                                .font(.caption.bold().tracking(0.5))
                             Spacer()
                         }
-                        .padding(.vertical, 8)
-                        .background(status.isPaperTrading ? Theme.orange : Theme.red)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .foregroundColor(.white)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    (status.isPaperTrading ? Theme.orange : Theme.red).opacity(0.8),
+                                    (status.isPaperTrading ? Theme.orange : Theme.red).opacity(0.6)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                     }
 
                     ScrollView {
@@ -52,9 +63,14 @@ struct DashboardView: View {
 
                                 TokenCard(vm: vm)
                             } else if appState.serverStatus == nil {
-                                ProgressView(appState.connectionState == .disconnected ? "Retrying…" : "Connecting…")
-                                    .foregroundColor(Theme.textSecondary)
-                                    .padding(.top, 40)
+                                VStack(spacing: 12) {
+                                    ProgressView()
+                                        .tint(Theme.blue)
+                                    Text(appState.connectionState == .disconnected ? "Retrying connection…" : "Connecting to server…")
+                                        .font(.caption)
+                                        .foregroundColor(Theme.textSecondary)
+                                }
+                                .padding(.top, 60)
                             }
                         }
                         .padding(16)
@@ -72,6 +88,7 @@ struct DashboardView: View {
                         showSettings = true
                     } label: {
                         Image(systemName: "gear")
+                            .font(.headline)
                             .foregroundColor(Theme.blue)
                     }
                 }

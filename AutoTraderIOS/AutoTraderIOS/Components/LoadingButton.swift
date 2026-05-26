@@ -18,20 +18,54 @@ struct LoadingButton: View {
 
     var body: some View {
         Button(role: role, action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(0.8)
+                        .scaleEffect(0.75)
+                } else {
+                    Image(systemName: role == .destructive ? "xmark.circle.fill" : "checkmark.circle.fill")
+                        .font(.caption.bold())
+                        .opacity(0.8)
                 }
+
                 Text(title)
-                    .fontWeight(.semibold)
+                    .font(.subheadline.bold())
+                    .tracking(0.3)
+
+                Spacer()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(isLoading ? color.opacity(0.6) : color)
+            .padding(.horizontal, 14)
+            .background(
+                ZStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            color.opacity(isLoading ? 0.5 : 0.9),
+                            color.opacity(isLoading ? 0.4 : 0.8)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.3),
+                                    Color.white.opacity(0.1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            )
             .foregroundColor(.white)
             .cornerRadius(10)
+            .shadow(color: color.opacity(0.4), radius: 8, x: 0, y: 4)
         }
         .disabled(isLoading)
     }

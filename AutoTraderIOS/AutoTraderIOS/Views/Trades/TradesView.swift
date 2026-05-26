@@ -98,42 +98,30 @@ private struct TradeCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with gradient
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    isDryRun ? Color(red: 0.3, green: 0.3, blue: 0.35) : Color(red: 0.1, green: 0.25, blue: 0.15),
-                    isDryRun ? Color(red: 0.2, green: 0.2, blue: 0.25) : Color(red: 0.08, green: 0.2, blue: 0.12)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 1)
-
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
+            // Glassmorphic header
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
                         Image(systemName: isDryRun ? "play.circle.fill" : "record.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(isDryRun ? Color(red: 0.7, green: 0.7, blue: 0.7) : Color(red: 0.0, green: 0.8, blue: 0.4))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(isDryRun ? Theme.textSecondary : Theme.green)
 
                         Text(isDryRun ? "DRY RUN" : "LIVE")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(isDryRun ? Color(red: 0.7, green: 0.7, blue: 0.7) : Color(red: 0.0, green: 0.8, blue: 0.4))
-
-                        Divider()
-                            .frame(height: 12)
-                            .opacity(0.5)
+                            .font(.caption.bold())
+                            .foregroundColor(isDryRun ? Theme.textSecondary : Theme.green)
 
                         if exitReason != "N/A" && !exitReason.isEmpty {
+                            Divider()
+                                .frame(height: 10)
+                                .opacity(0.3)
+
                             Text(exitReason)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundColor(exitReason == "OPEN" ? Color(red: 0.2, green: 0.6, blue: 1.0) : Color(red: 0.9, green: 0.4, blue: 0.2))
+                                .font(.caption.bold())
+                                .foregroundColor(exitReason == "OPEN" ? Theme.blue : Theme.orange)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(exitReason == "OPEN" ? Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.2) : Color(red: 0.9, green: 0.4, blue: 0.2).opacity(0.2))
-                                .cornerRadius(3)
+                                .background(exitReason == "OPEN" ? Theme.blue.opacity(0.15) : Theme.orange.opacity(0.15))
+                                .cornerRadius(4)
                         }
                     }
 
@@ -145,55 +133,68 @@ private struct TradeCard: View {
                 Spacer()
 
                 if let pnl = pnlDouble {
-                    VStack(alignment: .trailing, spacing: 4) {
+                    VStack(alignment: .trailing, spacing: 6) {
                         HStack(spacing: 4) {
                             Image(systemName: isProfit ? "arrow.up.right" : "arrow.down.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(isProfit ? Color(red: 0.0, green: 0.9, blue: 0.3) : Color(red: 1.0, green: 0.3, blue: 0.3))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(isProfit ? Theme.green : Theme.red)
 
                             Text(String(format: "%.2f", abs(pnl)))
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(isProfit ? Color(red: 0.0, green: 0.9, blue: 0.3) : Color(red: 1.0, green: 0.3, blue: 0.3))
+                                .font(.system(size: 16, weight: .bold).monospacedDigit())
+                                .foregroundColor(isProfit ? Theme.green : Theme.red)
                         }
 
-                        Text("P&L")
+                        Text("P&L Points")
                             .font(.caption2)
                             .foregroundColor(Theme.textSecondary)
                     }
                     .padding(10)
-                    .background(isProfit ? Color(red: 0.0, green: 0.9, blue: 0.3).opacity(0.15) : Color(red: 1.0, green: 0.3, blue: 0.3).opacity(0.15))
+                    .background(
+                        ZStack {
+                            (isProfit ? Theme.green : Theme.red).opacity(0.12)
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke((isProfit ? Theme.green : Theme.red).opacity(0.3), lineWidth: 1)
+                        }
+                    )
                     .cornerRadius(8)
                 }
             }
-            .padding(14)
+            .padding(12)
+            .background(
+                ZStack {
+                    Theme.glassBg
+                    RoundedRectangle(cornerRadius: Theme.radius)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+            )
 
-            // Divider
             Divider()
-                .background(Color(white: 0.15))
+                .background(Color.white.opacity(0.08))
 
-            // Details Grid
-            VStack(spacing: 10) {
-                ForEach(Array(trade.keys.sorted()), id: \.self) { key in
-                    if !["dry_run", "entry_date", "exit_reason", "pnl_points", "pnl"].contains(key.lowercased()) && !trade[key]!.isEmpty {
-                        HStack(spacing: 12) {
-                            Text(key)
-                                .font(.caption)
-                                .foregroundColor(Theme.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+            // Details in grid
+            if !trade.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(Array(trade.keys.sorted()), id: \.self) { key in
+                        if !["dry_run", "entry_date", "exit_reason", "pnl_points", "pnl"].contains(key.lowercased()) && !trade[key]!.isEmpty {
+                            HStack(spacing: 10) {
+                                Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                                    .font(.caption)
+                                    .foregroundColor(Theme.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                            Text(trade[key] ?? "")
-                                .font(.caption)
-                                .foregroundColor(Theme.blue)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color(red: 0.15, green: 0.35, blue: 0.6).opacity(0.3))
-                                .cornerRadius(4)
+                                Text(trade[key] ?? "")
+                                    .font(.caption.bold().monospacedDigit())
+                                    .foregroundColor(Theme.blue)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Theme.blue.opacity(0.12))
+                                    .cornerRadius(4)
+                            }
                         }
                     }
                 }
+                .padding(12)
             }
-            .padding(14)
         }
         .background(Theme.cardBg)
         .cornerRadius(Theme.radius)
@@ -202,8 +203,8 @@ private struct TradeCard: View {
                 .stroke(
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            isDryRun ? Color(red: 0.4, green: 0.4, blue: 0.5) : Color(red: 0.0, green: 0.8, blue: 0.4),
-                            Color(white: 0.2)
+                            (isDryRun ? Theme.textSecondary : Theme.green).opacity(0.3),
+                            Color.white.opacity(0.1)
                         ]),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -211,5 +212,6 @@ private struct TradeCard: View {
                     lineWidth: 1
                 )
         )
+        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
     }
 }

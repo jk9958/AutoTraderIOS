@@ -3,12 +3,15 @@ import SwiftUI
 enum Theme {
     static let background    = Color(hex: "0d0d0f")
     static let cardBg        = Color(hex: "1c1c1e")
+    static let glassBg       = Color(hex: "1c1c1e").opacity(0.6)
+    static let glassAccent   = Color(hex: "2a2a2d").opacity(0.5)
     static let textPrimary   = Color(hex: "e2e2e7")
     static let textSecondary = Color(hex: "8e8e93")
-    static let green         = Color(hex: "27ae60")
+    static let green         = Color(hex: "2ecc71")
     static let blue          = Color(hex: "3a7bd5")
-    static let orange        = Color(hex: "d68910")
-    static let red           = Color(hex: "c0392b")
+    static let orange        = Color(hex: "e67e22")
+    static let red           = Color(hex: "e74c3c")
+    static let successGreen  = Color(hex: "27ae60")
     static let radius: CGFloat = 14
     static let pad: CGFloat    = 16
 }
@@ -39,5 +42,29 @@ extension View {
             .padding(Theme.pad)
             .background(Theme.cardBg)
             .cornerRadius(Theme.radius)
+    }
+
+    func glassStyle() -> some View {
+        self
+            .padding(Theme.pad)
+            .background(
+                ZStack {
+                    Theme.glassBg
+                    RoundedRectangle(cornerRadius: Theme.radius)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.1),
+                                    Color.white.opacity(0.05)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            )
+            .cornerRadius(Theme.radius)
+            .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 8)
     }
 }

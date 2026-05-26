@@ -10,20 +10,28 @@ struct IronCondorForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Expiry
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Expiry").sectionLabel()
+            VStack(alignment: .leading, spacing: 6) {
+                Text("EXPIRY DATE")
+                    .sectionLabel()
+                    .tracking(0.5)
                 TextField("e.g. 26521", text: $vm.icExpiry)
                     .inputStyle()
+                Text("Weekly or monthly in YYMMDD format")
+                    .font(.caption2)
+                    .foregroundColor(Theme.textSecondary.opacity(0.7))
             }
 
             // Instrument
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Instrument").sectionLabel()
+            VStack(alignment: .leading, spacing: 6) {
+                Text("INSTRUMENT")
+                    .sectionLabel()
+                    .tracking(0.5)
                 Picker("Instrument", selection: $vm.icInstrument) {
                     Text("NIFTY").tag("nifty")
                     Text("BANKNIFTY").tag("banknifty")
                 }
                 .pickerStyle(.segmented)
+                .tint(Theme.blue)
             }
 
             // Lots
@@ -44,10 +52,16 @@ struct IronCondorForm: View {
                       format: { String(format: "%.1f", $0) })
 
             // Times
-            HStack(spacing: 16) {
-                timeField("Entry Start",  $vm.icEntryStart)
-                timeField("Entry Cutoff", $vm.icEntryCutoff)
-                timeField("EOD Exit",     $vm.icEodExit)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TIMING")
+                    .font(.caption.bold())
+                    .foregroundColor(Theme.textSecondary)
+                    .tracking(0.5)
+                HStack(spacing: 12) {
+                    timeField("Start",  $vm.icEntryStart)
+                    timeField("Cutoff", $vm.icEntryCutoff)
+                    timeField("EOD",    $vm.icEodExit)
+                }
             }
 
             // Dry Run
@@ -64,18 +78,46 @@ struct IronCondorForm: View {
 
             // Feedback
             if let success = vm.launchSuccess {
-                Text(success).font(.caption).foregroundColor(Theme.green)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(Theme.green)
+                    Text(success)
+                        .font(.caption)
+                        .foregroundColor(Theme.green)
+                }
+                .padding(10)
+                .background(Theme.green.opacity(0.12))
+                .cornerRadius(8)
             }
             if let err = vm.launchError {
-                Text(err).font(.caption).foregroundColor(Theme.red)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(Theme.red)
+                    Text(err)
+                        .font(.caption)
+                        .foregroundColor(Theme.red)
+                    Spacer()
+                }
+                .padding(10)
+                .background(Theme.red.opacity(0.12))
+                .cornerRadius(8)
             }
 
             // Launch
             if engineRunning {
-                Text("Stop the current engine first.")
-                    .font(.caption)
-                    .foregroundColor(Theme.orange)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Theme.orange)
+                    Text("Stop the running engine first")
+                        .font(.caption)
+                        .foregroundColor(Theme.orange)
+                    Spacer()
+                }
+                .padding(10)
+                .background(Theme.orange.opacity(0.12))
+                .cornerRadius(8)
             }
+
             LoadingButton("Launch Iron Condor", isLoading: vm.isLaunching, color: Theme.blue) {
                 if engineRunning { showStopFirst = true }
                 else { vm.launchIronCondor(appState: appState) }
@@ -100,29 +142,51 @@ struct IronCondorForm: View {
     }
 
     private func stepperRow(_ label: String, value: Binding<Int>, range: ClosedRange<Int>, step: Int = 1) -> some View {
-        HStack {
-            Text(label).foregroundColor(Theme.textSecondary).font(.subheadline)
-            Spacer()
-            Stepper("\(value.wrappedValue)", value: value, in: range, step: step)
-                .foregroundColor(Theme.textPrimary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label.uppercased())
+                    .font(.caption.bold())
+                    .foregroundColor(Theme.textSecondary)
+                    .tracking(0.5)
+                Spacer()
+                Text("\(value.wrappedValue)")
+                    .font(.headline.monospacedDigit())
+                    .foregroundColor(Theme.blue)
+            }
+            Stepper("", value: value, in: range, step: step)
+                .tint(Theme.blue)
         }
+        .padding(10)
+        .background(Theme.glassAccent)
+        .cornerRadius(8)
     }
 
     private func sliderRow(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, format: (Double) -> String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(label).foregroundColor(Theme.textSecondary).font(.subheadline)
+                Text(label.uppercased())
+                    .font(.caption.bold())
+                    .foregroundColor(Theme.textSecondary)
+                    .tracking(0.5)
                 Spacer()
-                Text(format(value.wrappedValue)).foregroundColor(Theme.textPrimary).font(.subheadline.monospacedDigit())
+                Text(format(value.wrappedValue))
+                    .font(.headline.monospacedDigit())
+                    .foregroundColor(Theme.green)
             }
             Slider(value: value, in: range, step: step)
                 .tint(Theme.blue)
         }
+        .padding(10)
+        .background(Theme.glassAccent)
+        .cornerRadius(8)
     }
 
     private func timeField(_ label: String, _ binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundColor(Theme.textSecondary)
+            Text(label)
+                .font(.caption.bold())
+                .foregroundColor(Theme.textSecondary)
+                .tracking(0.3)
             TextField("HH:MM", text: binding)
                 .inputStyle()
                 .keyboardType(.numbersAndPunctuation)
@@ -132,17 +196,24 @@ struct IronCondorForm: View {
 
 private extension Text {
     func sectionLabel() -> some View {
-        self.font(.caption).foregroundColor(Theme.textSecondary)
+        self
+            .font(.caption.bold())
+            .foregroundColor(Theme.textSecondary)
     }
 }
 
 private extension View {
     func inputStyle() -> some View {
         self
-            .padding(8)
-            .background(Theme.background)
-            .cornerRadius(8)
+            .padding(10)
             .foregroundColor(Theme.textPrimary)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3)))
+            .background(
+                ZStack {
+                    Theme.glassAccent
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                }
+            )
+            .cornerRadius(8)
     }
 }

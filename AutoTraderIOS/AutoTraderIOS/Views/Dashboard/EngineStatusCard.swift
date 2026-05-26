@@ -11,43 +11,63 @@ struct EngineStatusCard: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Engine")
-                    .font(.headline)
-                    .foregroundColor(Theme.textPrimary)
-                Spacer()
-                StatusPill(
-                    label: status.running ? "RUNNING" : "STOPPED",
-                    color: status.running ? Theme.green : Theme.textSecondary
-                )
-                StatusPill(
-                    label: status.isPaperTrading ? "PAPER" : "LIVE",
-                    color: status.isPaperTrading ? Theme.orange : Theme.red
-                )
-            }
-
-            if let engine = status.engine {
-                Text(engine)
-                    .font(.subheadline)
-                    .foregroundColor(Theme.textSecondary)
-            }
-
-            if status.running, let startedAt = status.startedAt {
-                HStack {
-                    Text("Started:")
-                        .font(.caption)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ENGINE STATUS")
+                        .font(.caption.bold())
                         .foregroundColor(Theme.textSecondary)
-                    Text(formattedStartTime(startedAt))
-                        .font(.caption)
-                        .foregroundColor(Theme.textPrimary)
-                    Spacer()
-                    if !elapsed.isEmpty {
-                        Text(elapsed)
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(Theme.green)
+                        .tracking(0.5)
+
+                    if let engine = status.engine {
+                        Text(engine)
+                            .font(.headline)
+                            .foregroundColor(Theme.textPrimary)
                     }
                 }
+                Spacer()
+
+                VStack(spacing: 8) {
+                    StatusPill(
+                        label: status.running ? "RUNNING" : "STOPPED",
+                        color: status.running ? Theme.green : Theme.red
+                    )
+                    StatusPill(
+                        label: status.isPaperTrading ? "PAPER" : "LIVE",
+                        color: status.isPaperTrading ? Theme.orange : Theme.red
+                    )
+                }
+            }
+
+            Divider().background(Color.white.opacity(0.1))
+
+            if status.running, let startedAt = status.startedAt {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Started", systemImage: "play.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(Theme.textSecondary)
+                        Spacer()
+                        Text(formattedStartTime(startedAt))
+                            .font(.caption.bold().monospacedDigit())
+                            .foregroundColor(Theme.green)
+                    }
+
+                    if !elapsed.isEmpty {
+                        HStack {
+                            Label("Elapsed", systemImage: "hourglass.bottomhalf.fill")
+                                .font(.caption)
+                                .foregroundColor(Theme.textSecondary)
+                            Spacer()
+                            Text(elapsed)
+                                .font(.caption.bold().monospacedDigit())
+                                .foregroundColor(Theme.successGreen)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Theme.successGreen.opacity(0.1))
+                .cornerRadius(10)
                 .onReceive(timer) { _ in
                     elapsed = elapsedString(since: startedAt)
                 }
@@ -57,22 +77,25 @@ struct EngineStatusCard: View {
             }
 
             if let code = status.exitCode, code != 0, !status.running {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(Theme.red)
-                    Text("Engine exited with code \(code). Check logs.")
+                    Text("Exit code \(code) — check logs")
                         .font(.caption)
                         .foregroundColor(Theme.red)
                 }
-                .padding(8)
+                .padding(10)
                 .background(Theme.red.opacity(0.15))
-                .cornerRadius(8)
+                .cornerRadius(10)
             }
 
             if let err = stopError {
                 Text(err)
                     .font(.caption)
                     .foregroundColor(Theme.red)
+                    .padding(10)
+                    .background(Theme.red.opacity(0.1))
+                    .cornerRadius(8)
             }
 
             LoadingButton(
@@ -83,9 +106,9 @@ struct EngineStatusCard: View {
                 action: onStop
             )
             .disabled(!status.running)
-            .opacity(status.running ? 1 : 0.4)
+            .opacity(status.running ? 1 : 0.5)
         }
-        .cardStyle()
+        .glassStyle()
     }
 
     private func formattedStartTime(_ iso: String) -> String {

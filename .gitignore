@@ -21,3 +21,6 @@ Pods/
 
 # Migration plans (local reference only)
 HTTPS_MIGRATION_PLAN.md
+
+# API server (local development)
+api_server.py

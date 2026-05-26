@@ -9,51 +9,127 @@ struct SettingsView: View {
         NavigationStack {
             ZStack {
                 Theme.background.ignoresSafeArea()
-                Form {
-                    Section("Server") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Base URL")
-                                .font(.caption)
-                                .foregroundColor(Theme.textSecondary)
-                            TextField("http://100.91.5.110:8000", text: $appState.serverBaseURL)
-                                .keyboardType(.URL)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .foregroundColor(Theme.textPrimary)
-                        }
-                    }
-                    .listRowBackground(Theme.cardBg)
 
-                    Section {
-                        Button {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                            Task { await vm.testConnection(client: appState.client) }
-                        } label: {
-                            HStack {
-                                Text("Test Connection")
-                                    .foregroundColor(Theme.blue)
-                                Spacer()
-                                testResultView
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Server settings
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("SERVER")
+                                    .font(.caption.bold())
+                                    .foregroundColor(Theme.textSecondary)
+                                    .tracking(0.5)
+                                Text("API Endpoint")
+                                    .font(.headline)
+                                    .foregroundColor(Theme.textPrimary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Base URL")
+                                    .font(.caption.bold())
+                                    .foregroundColor(Theme.textSecondary)
+                                    .tracking(0.3)
+                                TextField("http://100.91.5.110:8000", text: $appState.serverBaseURL)
+                                    .keyboardType(.URL)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .foregroundColor(Theme.textPrimary)
+                                    .padding(10)
+                                    .background(Theme.glassAccent)
+                                    .cornerRadius(8)
                             }
                         }
-                    }
-                    .listRowBackground(Theme.cardBg)
+                        .glassStyle()
 
-                    Section("About") {
-                        HStack {
-                            Text("Version")
-                                .foregroundColor(Theme.textSecondary)
-                            Spacer()
-                            Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                                .foregroundColor(Theme.textPrimary)
+                        // Connection test
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("DIAGNOSTICS")
+                                    .font(.caption.bold())
+                                    .foregroundColor(Theme.textSecondary)
+                                    .tracking(0.5)
+                                Text("Server Status")
+                                    .font(.headline)
+                                    .foregroundColor(Theme.textPrimary)
+                            }
+
+                            Button {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                Task { await vm.testConnection(client: appState.client) }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "wifi.badge.checkmark.fill")
+                                        .font(.headline)
+                                        .foregroundColor(Theme.blue)
+                                    Text("Test Connection")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(Theme.textPrimary)
+                                    Spacer()
+                                    testResultView
+                                }
+                                .padding(12)
+                                .background(Theme.glassAccent)
+                                .cornerRadius(10)
+                            }
                         }
-                        Text("Access requires Tailscale to be connected to your Windows machine.")
-                            .font(.footnote)
-                            .foregroundColor(Theme.textSecondary)
+                        .glassStyle()
+
+                        // About
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("ABOUT")
+                                    .font(.caption.bold())
+                                    .foregroundColor(Theme.textSecondary)
+                                    .tracking(0.5)
+                                Text("App Information")
+                                    .font(.headline)
+                                    .foregroundColor(Theme.textPrimary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "gear")
+                                            .font(.caption.bold())
+                                            .foregroundColor(Theme.blue)
+                                        Text("Version")
+                                    }
+                                    .foregroundColor(Theme.textSecondary)
+                                    Spacer()
+                                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                                        .font(.caption.bold().monospacedDigit())
+                                        .foregroundColor(Theme.textPrimary)
+                                }
+                                .padding(10)
+                                .background(Theme.glassAccent)
+                                .cornerRadius(8)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "network")
+                                            .font(.caption.bold())
+                                            .foregroundColor(Theme.green)
+                                        Text("Network")
+                                    }
+                                    .foregroundColor(Theme.textSecondary)
+                                    .font(.caption.bold())
+
+                                    Text("Access requires Tailscale to be connected to your Windows machine.")
+                                        .font(.caption)
+                                        .foregroundColor(Theme.textSecondary)
+                                        .lineLimit(3)
+                                }
+                                .padding(10)
+                                .background(Theme.glassAccent)
+                                .cornerRadius(8)
+                            }
+                        }
+                        .glassStyle()
+
+                        Spacer().frame(height: 20)
                     }
-                    .listRowBackground(Theme.cardBg)
+                    .padding(16)
                 }
-                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

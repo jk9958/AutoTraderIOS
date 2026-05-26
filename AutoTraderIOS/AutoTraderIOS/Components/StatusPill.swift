@@ -5,12 +5,25 @@ struct StatusPill: View {
     let color: Color
 
     var body: some View {
-        Text(label)
-            .font(.caption.bold())
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(color)
-            .clipShape(Capsule())
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+
+            Text(label)
+                .font(.caption.bold())
+                .tracking(0.3)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            ZStack {
+                color.opacity(0.2)
+                Capsule()
+                    .stroke(color.opacity(0.4), lineWidth: 1)
+            }
+        )
+        .clipShape(Capsule())
     }
 }

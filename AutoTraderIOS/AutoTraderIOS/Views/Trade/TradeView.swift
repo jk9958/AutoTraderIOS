@@ -65,29 +65,46 @@ struct TradeView: View {
             Button {
                 withAnimation { isExpanded.wrappedValue.toggle() }
             } label: {
-                HStack {
-                    Text(title)
+                HStack(spacing: 12) {
+                    Image(systemName: "bolt.fill")
                         .font(.headline)
-                        .foregroundColor(Theme.textPrimary)
+                        .foregroundColor(Theme.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title.uppercased())
+                            .font(.caption.bold())
+                            .foregroundColor(Theme.textSecondary)
+                            .tracking(0.5)
+                        Text(title)
+                            .font(.headline)
+                            .foregroundColor(Theme.textPrimary)
+                    }
+
                     Spacer()
                     Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                        .foregroundColor(Theme.textSecondary)
-                        .font(.caption)
+                        .foregroundColor(Theme.blue)
+                        .font(.caption.bold())
                 }
                 .padding(Theme.pad)
-                .background(Theme.cardBg)
+                .background(
+                    ZStack {
+                        Theme.glassBg
+                        RoundedRectangle(cornerRadius: isExpanded.wrappedValue ? 0 : Theme.radius)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    }
+                )
+                .cornerRadius(isExpanded.wrappedValue ? 0 : Theme.radius, corners: [.topLeft, .topRight])
                 .cornerRadius(isExpanded.wrappedValue ? 0 : Theme.radius)
-                .cornerRadius(Theme.radius, corners: [.topLeft, .topRight])
             }
             .buttonStyle(.plain)
 
             if isExpanded.wrappedValue {
                 VStack(alignment: .leading, spacing: 0) {
-                    Divider().background(Theme.textSecondary.opacity(0.3))
+                    Divider().background(Color.white.opacity(0.08))
                     content()
                         .padding(Theme.pad)
                 }
-                .background(Theme.cardBg)
+                .background(Theme.glassBg)
                 .cornerRadius(Theme.radius, corners: [.bottomLeft, .bottomRight])
             }
         }

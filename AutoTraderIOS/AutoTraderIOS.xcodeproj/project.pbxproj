@@ -33,6 +33,7 @@
 		AABB00CC1122334F /* Exceptions for "AutoTraderIOS" folder in "AutoTraderIOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				api_server.py,
 				Info.plist,
 			);
 			target = 495F684A2FBEE97F00917CAE /* AutoTraderIOS */;
