@@ -46,14 +46,28 @@
     </array>
     <key>NSAppTransportSecurity</key>
     <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>100.91.5.110</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <false/>
+                <key>NSAllowsArbitraryLoads</key>
+                <true/>
+                <key>NSExceptionsAllowInsecureHTTPLoads</key>
+                <true/>
+                <key>NSExceptionsRequireStrictTransportSecurityPreflighting</key>
+                <false/>
+                <key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSTemporaryExceptionRequiresForwardSecrecy</key>
+                <false/>
+                <key>NSTemporaryExceptionMinimumTLSVersion</key>
+                <string>TLSv1.0</string>
+            </dict>
+        </dict>
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>AutoTrader needs local network access to connect to your trading server over Tailscale.</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_http._tcp</string>
-    </array>
+    <string>AutoTrader needs local network access to connect to your trading server.</string>
 </dict>
 </plist>

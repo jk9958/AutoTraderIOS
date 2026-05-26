@@ -3,16 +3,14 @@ import Foundation
 struct APIClient {
     let baseURL: String
 
-    private static let pollTimeout: TimeInterval = 20
-    private static let actionTimeout: TimeInterval = 25
+    private static let pollTimeout: TimeInterval = 60
+    private static let actionTimeout: TimeInterval = 60
 
     private static func makeSession() -> URLSession {
-        let config = URLSessionConfiguration.ephemeral
-        config.waitsForConnectivity = false
+        let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = pollTimeout
         config.timeoutIntervalForResource = 60
-        config.httpAdditionalHeaders = ["Connection": "close"]
-        return URLSession(configuration: config)
+        return URLSession(configuration: config, delegate: TrustDelegate(), delegateQueue: nil)
     }
 
     private static let decoder: JSONDecoder = {
@@ -183,5 +181,18 @@ struct APIClient {
         } catch {
             throw APIError.decodingError
         }
+    }
+}
+
+private class TrustDelegate: NSObject, URLSessionDelegate {
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        let credential = URLCredential(trust: serverTrust)
+        completionHandler(.useCredential, credential)
     }
 }
