@@ -55,6 +55,14 @@ struct APIClient {
         return try decode(TradesResponse.self, from: data)
     }
 
+    // MARK: - MTM
+
+    func mtm() async throws -> MTMResponse {
+        let (data, response) = try await fetch("/mtm", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(MTMResponse.self, from: data)
+    }
+
     // MARK: - Token
 
     func setToken(broker: String, accessToken: String) async throws -> TokenResponse {

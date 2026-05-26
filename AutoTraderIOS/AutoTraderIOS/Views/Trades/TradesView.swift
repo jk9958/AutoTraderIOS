@@ -9,10 +9,10 @@ struct TradesView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
                 Group {
-                    if vm.isLoading && vm.trades.isEmpty {
+                    if vm.isLoading && vm.trades.isEmpty && vm.mtm == nil {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: Theme.blue))
-                    } else if vm.trades.isEmpty {
+                    } else if vm.trades.isEmpty && vm.mtm == nil {
                         VStack(spacing: 12) {
                             Image(systemName: "chart.bar.xaxis")
                                 .font(.system(size: 40))
@@ -22,6 +22,15 @@ struct TradesView: View {
                         }
                     } else {
                         List {
+                            if let mtm = vm.mtm {
+                                Section {
+                                    MTMCard(mtm: mtm)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+                                }
+                            }
+
                             ForEach(Array(vm.trades.enumerated()), id: \.offset) { _, trade in
                                 TradeCard(trade: trade)
                                     .listRowBackground(Theme.cardBg)
