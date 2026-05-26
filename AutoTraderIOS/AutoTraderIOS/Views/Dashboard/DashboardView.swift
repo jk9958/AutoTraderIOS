@@ -1,6 +1,48 @@
 import SwiftUI
 import Combine
 
+private struct TradingModeBanner: View {
+    let isPaper: Bool
+
+    var body: some View {
+        let leading = (isPaper ? Theme.orange : Theme.red).opacity(0.8)
+        let trailing = (isPaper ? Theme.orange : Theme.red).opacity(0.6)
+        return HStack(spacing: 8) {
+            Image(systemName: isPaper ? "book.fill" : "bolt.fill")
+                .font(.caption.bold())
+            Text(isPaper ? "PAPER TRADING" : "LIVE TRADING")
+                .tracking(0.5)
+                .font(.caption.bold())
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .foregroundColor(.white)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [leading, trailing]),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+    }
+}
+
+private struct ConnectingPlaceholder: View {
+    let isDisconnected: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(Theme.blue)
+            Text(isDisconnected ? "Retrying connection…" : "Connecting to server…")
+                .font(.caption)
+                .foregroundColor(Theme.textSecondary)
+        }
+        .padding(.top, 60)
+    }
+}
+
 struct DashboardView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm = DashboardVM()
@@ -27,26 +69,7 @@ struct DashboardView: View {
 
                     // LIVE/PAPER banner
                     if let status = appState.serverStatus {
-                        HStack(spacing: 8) {
-                            Image(systemName: status.isPaperTrading ? "book.fill" : "bolt.fill")
-                                .font(.caption.bold())
-                            Text(status.isPaperTrading ? "PAPER TRADING" : "LIVE TRADING")
-                                .font(.caption.bold().tracking(0.5))
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .foregroundColor(.white)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    (status.isPaperTrading ? Theme.orange : Theme.red).opacity(0.8),
-                                    (status.isPaperTrading ? Theme.orange : Theme.red).opacity(0.6)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        TradingModeBanner(isPaper: status.isPaperTrading)
                     }
 
                     ScrollView {
@@ -63,14 +86,7 @@ struct DashboardView: View {
 
                                 TokenCard(vm: vm)
                             } else if appState.serverStatus == nil {
-                                VStack(spacing: 12) {
-                                    ProgressView()
-                                        .tint(Theme.blue)
-                                    Text(appState.connectionState == .disconnected ? "Retrying connection…" : "Connecting to server…")
-                                        .font(.caption)
-                                        .foregroundColor(Theme.textSecondary)
-                                }
-                                .padding(.top, 60)
+                                ConnectingPlaceholder(isDisconnected: appState.connectionState == .disconnected)
                             }
                         }
                         .padding(16)
@@ -114,3 +130,4 @@ struct DashboardView: View {
         .preferredColorScheme(.dark)
     }
 }
+

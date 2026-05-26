@@ -8,7 +8,7 @@ final class TradesVM: ObservableObject {
     @Published var trades: [[String: String]] = []
     @Published var isLoading = false
     @Published var error: String?
-    @Published var mtmRefreshTimer: Timer?
+    nonisolated(unsafe) private var mtmRefreshTimer: Timer?
 
     func fetch(client: APIClient) async {
         isLoading = true
@@ -39,17 +39,12 @@ final class TradesVM: ObservableObject {
     }
 
     private func startMTMRefresh(client: APIClient) {
-        stopMTMRefresh()
+        mtmRefreshTimer?.invalidate()
         mtmRefreshTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task {
                 await self?.refreshMTM(client: client)
             }
         }
-    }
-
-    private func stopMTMRefresh() {
-        mtmRefreshTimer?.invalidate()
-        mtmRefreshTimer = nil
     }
 
     private func refreshMTM(client: APIClient) async {
@@ -62,6 +57,6 @@ final class TradesVM: ObservableObject {
     }
 
     deinit {
-        stopMTMRefresh()
+        mtmRefreshTimer?.invalidate()
     }
 }
