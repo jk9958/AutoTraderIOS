@@ -64,6 +64,29 @@ struct IronCondorForm: View {
                 }
             }
 
+            // Margin Estimate
+            VStack(alignment: .leading, spacing: 10) {
+                LoadingButton("Estimate Margin", isLoading: vm.isEstimatingMargin, color: Theme.orange) {
+                    vm.estimateMargin(appState: appState)
+                }
+                if let m = vm.marginEstimate {
+                    marginCard(m)
+                }
+                if let err = vm.marginError {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundColor(Theme.red)
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(Theme.red)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Theme.red.opacity(0.12))
+                    .cornerRadius(8)
+                }
+            }
+
             // Dry Run
             Toggle(isOn: $vm.icDryRun) {
                 HStack {
@@ -139,6 +162,83 @@ struct IronCondorForm: View {
                 vm.cancelLiveAction()
             }
         }
+    }
+
+    private func marginCard(_ m: MarginResponse) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("MARGIN REQUIRED")
+                    .font(.caption.bold())
+                    .foregroundColor(Theme.textSecondary)
+                    .tracking(0.5)
+                Spacer()
+                Text(m.method == "fyers_span" ? "Fyers SPAN" : "Est. (formula)")
+                    .font(.caption2.bold())
+                    .foregroundColor(m.method == "fyers_span" ? Theme.green : Theme.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background((m.method == "fyers_span" ? Theme.green : Theme.orange).opacity(0.15))
+                    .cornerRadius(6)
+            }
+
+            Text("₹\(m.marginRequired.formatted())")
+                .font(.title2.bold().monospacedDigit())
+                .foregroundColor(Theme.textPrimary)
+
+            HStack(spacing: 16) {
+                labelValue("Per lot", "₹\(m.perLot.formatted())")
+                labelValue("Spot", m.spot.formatted(.number.precision(.fractionLength(0))))
+                labelValue("ATM", "\(m.atm)")
+            }
+
+            Divider().background(Color.white.opacity(0.1))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("LEGS")
+                    .font(.caption2.bold())
+                    .foregroundColor(Theme.textSecondary)
+                    .tracking(0.5)
+                HStack(spacing: 12) {
+                    legPill("S PE", "\(m.legs.shortPe)", Theme.red)
+                    legPill("L PE", "\(m.legs.longPe)",  Theme.blue)
+                    legPill("S CE", "\(m.legs.shortCe)", Theme.red)
+                    legPill("L CE", "\(m.legs.longCe)",  Theme.blue)
+                }
+            }
+        }
+        .padding(12)
+        .background(Theme.glassAccent)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.orange.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func labelValue(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(Theme.textSecondary)
+            Text(value)
+                .font(.caption.monospacedDigit().bold())
+                .foregroundColor(Theme.textPrimary)
+        }
+    }
+
+    private func legPill(_ label: String, _ strike: String, _ color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.caption2.bold())
+                .foregroundColor(color)
+            Text(strike)
+                .font(.caption2.monospacedDigit())
+                .foregroundColor(Theme.textPrimary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12))
+        .cornerRadius(6)
     }
 
     private func stepperRow(_ label: String, value: Binding<Int>, range: ClosedRange<Int>, step: Int = 1) -> some View {

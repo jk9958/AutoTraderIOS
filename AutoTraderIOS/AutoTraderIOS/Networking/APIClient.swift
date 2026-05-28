@@ -114,6 +114,26 @@ struct APIClient {
         return try decode(StopResponse.self, from: data)
     }
 
+    // MARK: - Margin Estimator
+
+    func ironCondorMargin(instrument: String, lots: Int, spreadPts: Int, wingPts: Int, expiry: String) async throws -> MarginResponse {
+        Self.logger.debug("→ GET /margin/iron-condor")
+        guard var comps = URLComponents(string: baseURL + "/margin/iron-condor") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        comps.queryItems = [
+            URLQueryItem(name: "instrument", value: instrument),
+            URLQueryItem(name: "lots",       value: String(lots)),
+            URLQueryItem(name: "spread_pts", value: String(spreadPts)),
+            URLQueryItem(name: "wing_pts",   value: String(wingPts)),
+            URLQueryItem(name: "expiry",     value: expiry),
+        ]
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        let (data, response) = try await performURL(url, timeout: Self.actionTimeout)
+        try validate(response, data: data)
+        return try decode(MarginResponse.self, from: data)
+    }
+
     // MARK: - Auth URL
 
     func fyersAuthURL() throws -> URL {
