@@ -6,26 +6,15 @@ struct RootTabView: View {
     var body: some View {
         TabView {
             DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "gauge.with.needle")
-                }
-
+                .tabItem { Label("Status", systemImage: "gauge.with.needle") }
             TradeView()
-                .tabItem {
-                    Label("Trade", systemImage: "bolt.fill")
-                }
-
+                .tabItem { Label("Trade", systemImage: "bolt.fill") }
             LogsView()
-                .tabItem {
-                    Label("Logs", systemImage: "doc.text")
-                }
-
+                .tabItem { Label("Logs", systemImage: "doc.text.magnifyingglass") }
             TradesView()
-                .tabItem {
-                    Label("Trades", systemImage: "chart.bar.xaxis")
-                }
+                .tabItem { Label("Positions", systemImage: "chart.line.uptrend.xyaxis") }
         }
-        .accentColor(Theme.blue)
+        .tint(Theme.blue)
         .preferredColorScheme(.dark)
     }
 }

@@ -35,7 +35,7 @@ final class AppState: ObservableObject {
 
     init() {
         let stored = UserDefaults.standard.string(forKey: "serverBaseURL") ?? ""
-        let url = stored.isEmpty ? "https://100.91.5.110:8000" : Self.sanitizeURL(stored)
+        let url = stored.isEmpty ? "https://trader.allweatheralgo.com" : Self.sanitizeURL(stored)
         self.serverBaseURL = url
         self.client = APIClient(baseURL: url)
         startLifecycleObservers()

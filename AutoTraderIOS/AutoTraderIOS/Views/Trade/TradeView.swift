@@ -4,46 +4,61 @@ struct TradeView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm = TradeVM()
 
-    @State private var expandIC = true
-    @State private var expandScalping = false
-    @State private var expandOptions = false
-
-    private var engineRunning: Bool { appState.serverStatus?.running ?? false }
-
     var body: some View {
         NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 12) {
-                        // Iron Condor
-                        section(title: "Iron Condor", isExpanded: $expandIC) {
-                            IronCondorForm(vm: vm)
-                        }
-
-                        // Scalping
-                        section(title: "Scalping", isExpanded: $expandScalping) {
-                            simpleEngine(
-                                dryRun: $vm.scalpingDryRun,
-                                isLoading: vm.isLaunching,
-                                onLaunch: { vm.launchScalping(appState: appState) }
-                            )
-                        }
-
-                        // Options
-                        section(title: "Options", isExpanded: $expandOptions) {
-                            simpleEngine(
-                                dryRun: $vm.optionsDryRun,
-                                isLoading: vm.isLaunching,
-                                onLaunch: { vm.launchOptions(appState: appState) }
-                            )
-                        }
+            List {
+                Section {
+                    NavigationLink {
+                        IronCondorDetailView(vm: vm)
+                            .environmentObject(appState)
+                    } label: {
+                        strategyRow(
+                            title: "Iron Condor",
+                            subtitle: "Delta-neutral options spread",
+                            icon: "arrow.left.and.right",
+                            color: .blue
+                        )
                     }
-                    .padding(16)
+
+                    NavigationLink {
+                        SimpleStrategyView(
+                            title: "Scalping",
+                            dryRun: $vm.scalpingDryRun,
+                            vm: vm,
+                            onLaunch: { vm.launchScalping(appState: appState) }
+                        )
+                        .environmentObject(appState)
+                    } label: {
+                        strategyRow(
+                            title: "Scalping",
+                            subtitle: "Short-term momentum strategy",
+                            icon: "bolt.fill",
+                            color: .orange
+                        )
+                    }
+
+                    NavigationLink {
+                        SimpleStrategyView(
+                            title: "Options",
+                            dryRun: $vm.optionsDryRun,
+                            vm: vm,
+                            onLaunch: { vm.launchOptions(appState: appState) }
+                        )
+                        .environmentObject(appState)
+                    } label: {
+                        strategyRow(
+                            title: "Options",
+                            subtitle: "Directional options trading",
+                            icon: "chart.line.uptrend.xyaxis",
+                            color: .purple
+                        )
+                    }
+                } header: {
+                    Text("Strategies")
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Trade")
-            .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 if let status = appState.serverStatus {
                     vm.prefill(nextExpiry: status.nextExpiry)
@@ -53,124 +68,99 @@ struct TradeView: View {
                 if let expiry { vm.prefill(nextExpiry: expiry) }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
-    private func section<Content: View>(
-        title: String,
-        isExpanded: Binding<Bool>,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation { isExpanded.wrappedValue.toggle() }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "bolt.fill")
-                        .font(.headline)
-                        .foregroundColor(Theme.blue)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title.uppercased())
-                            .font(.caption.bold())
-                            .foregroundColor(Theme.textSecondary)
-                            .tracking(0.5)
-                        Text(title)
-                            .font(.headline)
-                            .foregroundColor(Theme.textPrimary)
-                    }
-
-                    Spacer()
-                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                        .foregroundColor(Theme.blue)
-                        .font(.caption.bold())
-                }
-                .padding(Theme.pad)
-                .background(
-                    ZStack {
-                        Theme.glassBg
-                        RoundedRectangle(cornerRadius: isExpanded.wrappedValue ? 0 : Theme.radius)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    }
-                )
-                .cornerRadius(isExpanded.wrappedValue ? 0 : Theme.radius, corners: [.topLeft, .topRight])
-                .cornerRadius(isExpanded.wrappedValue ? 0 : Theme.radius)
+    private func strategyRow(title: String, subtitle: String, icon: String, color: Color) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-
-            if isExpanded.wrappedValue {
-                VStack(alignment: .leading, spacing: 0) {
-                    Divider().background(Color.white.opacity(0.08))
-                    content()
-                        .padding(Theme.pad)
-                }
-                .background(Theme.glassBg)
-                .cornerRadius(Theme.radius, corners: [.bottomLeft, .bottomRight])
-            }
+        } icon: {
+            Image(systemName: icon)
+                .foregroundStyle(color)
         }
     }
+}
 
-    private func simpleEngine(dryRun: Binding<Bool>, isLoading: Bool, onLaunch: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Toggle(isOn: dryRun) {
-                HStack {
-                    Text("Dry Run")
-                        .foregroundColor(Theme.textPrimary)
-                    if !dryRun.wrappedValue {
-                        StatusPill(label: "LIVE", color: Theme.red)
+// MARK: - Simple Strategy Detail
+
+private struct SimpleStrategyView: View {
+    @EnvironmentObject var appState: AppState
+    let title: String
+    @Binding var dryRun: Bool
+    @ObservedObject var vm: TradeVM
+    let onLaunch: () -> Void
+
+    private var engineRunning: Bool { appState.serverStatus?.running ?? false }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: $dryRun) {
+                    Label("Dry Run", systemImage: "play.circle")
+                }
+                if !dryRun {
+                    Label("Live orders will be placed", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.footnote)
+                }
+            } header: {
+                Text("Mode")
+            }
+
+            Section {
+                if engineRunning {
+                    Label("Stop the running engine first", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.footnote)
+                }
+                Button {
+                    onLaunch()
+                } label: {
+                    HStack {
+                        Spacer()
+                        if vm.isLaunching {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(dryRun ? .blue : .red)
+                                .padding(.trailing, 6)
+                        }
+                        Text(vm.isLaunching ? "Launching…" : "Launch \(title)")
+                            .foregroundStyle(dryRun ? .blue : .red)
+                        Spacer()
                     }
                 }
-            }
-            .tint(Theme.green)
+                .disabled(engineRunning || vm.isLaunching)
 
-            if engineRunning {
-                Text("Stop the current engine first.").font(.caption).foregroundColor(Theme.orange)
-            }
-            LoadingButton("Launch", isLoading: isLoading, color: Theme.blue) {
-                onLaunch()
-            }
-            .disabled(engineRunning || isLoading)
-
-            if let success = vm.launchSuccess {
-                Text(success).font(.caption).foregroundColor(Theme.green)
-            }
-            if let err = vm.launchError {
-                Text(err).font(.caption).foregroundColor(Theme.red)
+                if let success = vm.launchSuccess {
+                    Label(success, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                }
+                if let err = vm.launchError {
+                    Label(err, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            } header: {
+                Text("Launch")
             }
         }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "⚠️ LIVE Mode — real orders will be placed. Are you sure?",
+            "LIVE Mode — real orders will be placed",
             isPresented: $vm.showLiveConfirmation,
             titleVisibility: .visible
         ) {
             Button("Place LIVE Orders", role: .destructive) {
                 Task { await vm.confirmLiveAction() }
             }
-            Button("Cancel", role: .cancel) {
-                vm.cancelLiveAction()
-            }
+            Button("Cancel", role: .cancel) { vm.cancelLiveAction() }
         }
-    }
-}
-
-// MARK: - Rounded corners helper
-
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCornerShape(radius: radius, corners: corners))
-    }
-}
-
-private struct RoundedCornerShape: Shape {
-    let radius: CGFloat
-    let corners: UIRectCorner
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
     }
 }

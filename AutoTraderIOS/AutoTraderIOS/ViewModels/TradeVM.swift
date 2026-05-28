@@ -43,6 +43,11 @@ final class TradeVM: ObservableObject {
     @Published var showLiveConfirmation = false
     @Published var pendingLaunchAction: (() async -> Void)?
 
+    // Margin estimate
+    @Published var marginEstimate: MarginResponse?
+    @Published var isEstimatingMargin = false
+    @Published var marginError: String?
+
     private let defaults = UserDefaults.standard
 
     init(nextExpiry: String = "") {
@@ -165,6 +170,32 @@ final class TradeVM: ObservableObject {
     func cancelLiveAction() {
         showLiveConfirmation = false
         pendingLaunchAction = nil
+    }
+
+    // MARK: - Margin Estimate
+
+    func estimateMargin(appState: AppState) {
+        Task {
+            isEstimatingMargin = true
+            marginError = nil
+            defer { isEstimatingMargin = false }
+            do {
+                marginEstimate = try await appState.client.ironCondorMargin(
+                    instrument: icInstrument,
+                    lots: icLots,
+                    spreadPts: icSpreadPts,
+                    wingPts: icWingPts,
+                    expiry: icExpiry
+                )
+                Haptics.success()
+            } catch let err as APIError {
+                marginError = err.errorDescription
+                Haptics.error()
+            } catch {
+                marginError = error.localizedDescription
+                Haptics.error()
+            }
+        }
     }
 
     // MARK: - Persistence
