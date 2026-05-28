@@ -156,6 +156,11 @@ struct APIClient {
             if let http = response as? HTTPURLResponse {
                 Self.logger.debug("← \(http.statusCode) \(request.url?.lastPathComponent ?? "?")")
             }
+            #if DEBUG
+            if let body = String(data: data, encoding: .utf8) {
+                Self.logger.debug("← body: \(body)")
+            }
+            #endif
             return (data, response)
         } catch let err as URLError {
             Self.logger.error("✗ Request failed: \(err.code.rawValue) - \(request.url?.lastPathComponent ?? "?")")
