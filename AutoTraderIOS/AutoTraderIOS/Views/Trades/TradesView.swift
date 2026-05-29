@@ -127,10 +127,11 @@ private struct TradeRow: View {
     let trade: [String: String]
 
     private var isDryRun: Bool { trade["dry_run"]?.lowercased() == "true" }
-    private var entryDate: String { trade["entry_date"] ?? "—" }
+    private var entryDate: String { trade["date"] ?? trade["entry_date"] ?? "—" }
+    private var instrument: String { trade["instrument"] ?? "" }
     private var exitReason: String { trade["exit_reason"] ?? "" }
     private var pnlDouble: Double? {
-        guard let pnl = trade["pnl_points"] ?? trade["pnl"], !pnl.isEmpty else { return nil }
+        guard let pnl = trade["pnl_pts"] ?? trade["pnl_points"] ?? trade["pnl"], !pnl.isEmpty else { return nil }
         return Double(pnl)
     }
 
@@ -165,9 +166,16 @@ private struct TradeRow: View {
                 }
             }
 
-            Text(entryDate)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                if !instrument.isEmpty {
+                    Text(instrument)
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                }
+                Text(entryDate)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 4)
     }

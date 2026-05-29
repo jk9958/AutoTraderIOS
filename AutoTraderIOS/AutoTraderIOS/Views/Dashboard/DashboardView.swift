@@ -109,59 +109,23 @@ struct DashboardView: View {
                             Label("Login with Fyers", systemImage: "arrow.up.right.square")
                         }
 
-                        DisclosureGroup(isExpanded: $vm.showFyersTokenForm) {
-                            SecureField("Fyers access token", text: $vm.fyersTokenInput)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                            Button {
-                                Task { await vm.saveFyersToken(appState: appState) }
-                            } label: {
-                                HStack {
-                                    Spacer()
-                                    if vm.isSavingFyersToken {
-                                        ProgressView().progressViewStyle(.circular).scaleEffect(0.8)
-                                    } else {
-                                        Text("Save Fyers Token")
-                                    }
-                                    Spacer()
+                        Button {
+                            Task { await vm.saveFyersToEnv(appState: appState) }
+                        } label: {
+                            HStack {
+                                Label("Save Fyers Token to .env", systemImage: "square.and.arrow.down")
+                                Spacer()
+                                if vm.isSavingFyersToEnv {
+                                    ProgressView().progressViewStyle(.circular).scaleEffect(0.8)
                                 }
                             }
-                            .disabled(vm.isSavingFyersToken || vm.fyersTokenInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                        } label: {
-                            Label("Paste Fyers Token", systemImage: "key")
                         }
+                        .disabled(vm.isSavingFyersToEnv)
 
-                        DisclosureGroup(isExpanded: $vm.showKiteTokenForm) {
-                            SecureField("Kite access token", text: $vm.kiteTokenInput)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                            Button {
-                                Task { await vm.saveKiteToken(appState: appState) }
-                            } label: {
-                                HStack {
-                                    Spacer()
-                                    if vm.isSavingKiteToken {
-                                        ProgressView().progressViewStyle(.circular).scaleEffect(0.8)
-                                    } else {
-                                        Text("Save Kite Token")
-                                    }
-                                    Spacer()
-                                }
-                            }
-                            .disabled(vm.isSavingKiteToken || vm.kiteTokenInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                        Button {
+                            vm.openTradesmartAuth(appState: appState)
                         } label: {
-                            Label("Paste Kite Token", systemImage: "key")
-                        }
-
-                        if let success = vm.tokenSaveSuccess {
-                            Label(success, systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.caption)
-                        }
-                        if let err = vm.tokenSaveError {
-                            Label(err, systemImage: "exclamationmark.circle")
-                                .foregroundStyle(.red)
-                                .font(.caption)
+                            Label("Login with TradeSmart", systemImage: "arrow.up.right.square")
                         }
                     } header: {
                         Text("Broker Auth")
@@ -204,12 +168,22 @@ struct DashboardView: View {
                         }
                 }
             }
+            .sheet(isPresented: $vm.showTradesmartAuth) {
+                if let url = vm.tradesmartAuthURL {
+                    SafariView(url: url)
+                        .ignoresSafeArea()
+                        .onDisappear {
+                            Task { await vm.handleTradesmartAuthDismiss(appState: appState) }
+                        }
+                }
+            }
             .alert(vm.alertMessage ?? "", isPresented: $vm.showAlert) {
                 Button("OK", role: .cancel) {}
             }
             .onAppear {
                 elapsed = elapsedIfRunning()
                 appState.startPolling()
+                appState.refreshNow()
             }
             .onDisappear { appState.stopPolling() }
             .onReceive(timer) { _ in elapsed = elapsedIfRunning() }
@@ -218,9 +192,9 @@ struct DashboardView: View {
 
     @ViewBuilder
     private func tokenStatusRow(broker: String, label: String) -> some View {
-        let tokens = status?.tokens ?? [:]
+        let tokens: [String: String] = status?.tokens ?? [:]
         let val = tokens[broker] ?? "not set"
-        let isReady = val.contains("updated") || val.contains("loaded")
+        let isReady = val.contains("updated") || val.contains("loaded") || val.contains("active")
         LabeledContent(label) {
             HStack(spacing: 4) {
                 if isReady {

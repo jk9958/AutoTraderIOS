@@ -60,11 +60,16 @@ struct LogsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    if !vm.source.isEmpty {
-                        Label(vm.source, systemImage: "doc.text")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Picker("Log type", selection: Binding(
+                        get: { vm.logType },
+                        set: { vm.switchType(to: $0, client: appState.client) }
+                    )) {
+                        ForEach(LogType.allCases, id: \.self) { type in
+                            Text(type.rawValue).tag(type)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .frame(width: 140)
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button {
@@ -81,6 +86,12 @@ struct LogsView: View {
                             Text("200 lines").tag(200)
                             Text("500 lines").tag(500)
                         }
+                        Divider()
+                        Button(role: .destructive) {
+                            vm.clearLogs(client: appState.client)
+                        } label: {
+                            Label("Clear Logs", systemImage: "trash")
+                        }
                     } label: {
                         Image(systemName: "line.3.horizontal")
                     }
@@ -88,7 +99,11 @@ struct LogsView: View {
                     Button {
                         vm.refresh(client: appState.client)
                     } label: {
-                        Image(systemName: "arrow.clockwise")
+                        if vm.isClearing {
+                            ProgressView().progressViewStyle(.circular).scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
                 }
             }

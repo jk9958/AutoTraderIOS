@@ -134,10 +134,77 @@ struct APIClient {
         return try decode(MarginResponse.self, from: data)
     }
 
-    // MARK: - Auth URL
+    // MARK: - Save Fyers Token to .env
+
+    func saveFyersTokenToEnv() async throws -> MessageResponse {
+        Self.logger.debug("→ POST /token/fyers/save-env")
+        var req = try urlRequest("/token/fyers/save-env", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(MessageResponse.self, from: data)
+    }
+
+    // MARK: - TradeSmart Token Exchange
+
+    func exchangeTradesmartToken(requestToken: String) async throws -> TokenResponse {
+        Self.logger.debug("→ POST /token/tradesmart/exchange")
+        var req = try urlRequest("/token/tradesmart/exchange", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(["code": requestToken])
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(TokenResponse.self, from: data)
+    }
+
+    // MARK: - Clear Logs
+
+    func clearLogs() async throws {
+        Self.logger.debug("→ POST /logs/clear")
+        var req = try urlRequest("/logs/clear", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (_, response) = try await perform(req)
+        try validate(response)
+    }
+
+    // MARK: - API Logs
+
+    func apiLogs(lines: Int = 200) async throws -> LogsResponse {
+        Self.logger.debug("→ GET /logs/api?lines=\(lines)")
+        guard var comps = URLComponents(string: baseURL + "/logs/api") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        comps.queryItems = [URLQueryItem(name: "lines", value: String(lines))]
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogsResponse.self, from: data)
+    }
+
+    // MARK: - Metrics
+
+    func metrics(window: Int = 12) async throws -> MetricsResponse {
+        Self.logger.debug("→ GET /metrics?window=\(window)")
+        guard var comps = URLComponents(string: baseURL + "/metrics") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        comps.queryItems = [URLQueryItem(name: "window", value: String(window))]
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(MetricsResponse.self, from: data)
+    }
+
+    // MARK: - Auth URLs
 
     func fyersAuthURL() throws -> URL {
         guard let url = URL(string: baseURL + "/auth/fyers") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        return url
+    }
+
+    func tradesmartAuthURL() throws -> URL {
+        guard let url = URL(string: baseURL + "/auth/tradesmart") else {
             throw APIError.wrongBaseURL(url: baseURL)
         }
         return url

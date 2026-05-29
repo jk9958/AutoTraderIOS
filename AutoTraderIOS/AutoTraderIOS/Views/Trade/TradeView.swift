@@ -60,8 +60,8 @@ struct TradeView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Trade")
             .onAppear {
-                if let status = appState.serverStatus {
-                    vm.prefill(nextExpiry: status.nextExpiry)
+                if let status = appState.serverStatus, let expiry = status.nextExpiry {
+                    vm.prefill(nextExpiry: expiry)
                 }
             }
             .onChange(of: appState.serverStatus?.nextExpiry) { _, expiry in

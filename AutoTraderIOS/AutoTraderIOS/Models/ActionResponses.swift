@@ -26,6 +26,33 @@ struct HealthResponse: Codable {
     let status: String
 }
 
+struct MessageResponse: Codable {
+    let status: String
+    let message: String?
+    let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status, message
+        case updatedAt = "updated_at"
+    }
+}
+
+struct MetricsResponse: Codable {
+    let per5min: [MetricBucket]?
+    let totalLines: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case per5min = "per_5min"
+        case totalLines = "total_lines"
+    }
+
+    struct MetricBucket: Codable {
+        let window: String?
+        let calls: Int?
+        let bytes: Int?
+    }
+}
+
 struct IronCondorParams: Encodable {
     var expiry: String
     var instrument: String = "nifty"

@@ -1,24 +1,19 @@
 import SwiftUI
-import SafariServices
-import AuthenticationServices
 import Combine
+import SafariServices
 
 @MainActor
 final class DashboardVM: ObservableObject {
     @Published var isStoppingEngine = false
     @Published var stopError: String?
 
-    @Published var isSavingFyersToken = false
-    @Published var isSavingKiteToken = false
-    @Published var fyersTokenInput = ""
-    @Published var kiteTokenInput = ""
-    @Published var showFyersTokenForm = false
-    @Published var showKiteTokenForm = false
-    @Published var tokenSaveError: String?
-    @Published var tokenSaveSuccess: String?
-
     @Published var showFyersAuth = false
     @Published var fyersAuthURL: URL?
+
+    @Published var showTradesmartAuth = false
+    @Published var tradesmartAuthURL: URL?
+
+    @Published var isSavingFyersToEnv = false
 
     @Published var alertMessage: String?
     @Published var showAlert = false
@@ -46,56 +41,6 @@ final class DashboardVM: ObservableObject {
         }
     }
 
-    // MARK: - Token Save
-
-    func saveFyersToken(appState: AppState) async {
-        let token = fyersTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return }
-        isSavingFyersToken = true
-        tokenSaveError = nil
-        tokenSaveSuccess = nil
-        defer { isSavingFyersToken = false }
-
-        do {
-            let resp = try await appState.client.setToken(broker: "fyers", accessToken: token)
-            tokenSaveSuccess = "Fyers token saved (\(resp.updatedAt))"
-            fyersTokenInput = ""
-            showFyersTokenForm = false
-            Haptics.success()
-            await appState.fetchStatus()
-        } catch let err as APIError {
-            tokenSaveError = err.errorDescription
-            Haptics.error()
-        } catch {
-            tokenSaveError = error.localizedDescription
-            Haptics.error()
-        }
-    }
-
-    func saveKiteToken(appState: AppState) async {
-        let token = kiteTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return }
-        isSavingKiteToken = true
-        tokenSaveError = nil
-        tokenSaveSuccess = nil
-        defer { isSavingKiteToken = false }
-
-        do {
-            let resp = try await appState.client.setToken(broker: "kite", accessToken: token)
-            tokenSaveSuccess = "Kite token saved (\(resp.updatedAt))"
-            kiteTokenInput = ""
-            showKiteTokenForm = false
-            Haptics.success()
-            await appState.fetchStatus()
-        } catch let err as APIError {
-            tokenSaveError = err.errorDescription
-            Haptics.error()
-        } catch {
-            tokenSaveError = error.localizedDescription
-            Haptics.error()
-        }
-    }
-
     // MARK: - Fyers OAuth
 
     func openFyersAuth(appState: AppState) {
@@ -113,10 +58,47 @@ final class DashboardVM: ObservableObject {
         showFyersAuth = false
         await appState.fetchStatus()
         if let status = appState.serverStatus {
-            let val = status.tokens["fyers"] ?? ""
-            if !val.contains("updated") && !val.contains("loaded") {
+            let val = status.tokens?["fyers"] ?? ""
+            if !val.contains("updated") && !val.contains("loaded") && !val.contains("active") {
                 present(info: "Fyers login may not have completed — try again.")
             }
+        }
+    }
+
+    // MARK: - TradeSmart OAuth
+
+    func openTradesmartAuth(appState: AppState) {
+        do {
+            tradesmartAuthURL = try appState.client.tradesmartAuthURL()
+            showTradesmartAuth = true
+        } catch let err as APIError {
+            present(error: err.errorDescription ?? "Unknown error")
+        } catch {
+            present(error: error.localizedDescription)
+        }
+    }
+
+    func handleTradesmartAuthDismiss(appState: AppState) async {
+        showTradesmartAuth = false
+        await appState.fetchStatus()
+    }
+
+    // MARK: - Save Fyers Token to .env
+
+    func saveFyersToEnv(appState: AppState) async {
+        isSavingFyersToEnv = true
+        defer { isSavingFyersToEnv = false }
+        do {
+            let resp = try await appState.client.saveFyersTokenToEnv()
+            let time = resp.updatedAt.map { " at \($0)" } ?? ""
+            present(info: resp.message ?? "Fyers token saved to .env\(time)")
+            Haptics.success()
+        } catch let err as APIError {
+            present(error: err.errorDescription ?? "Unknown error")
+            Haptics.error()
+        } catch {
+            present(error: error.localizedDescription)
+            Haptics.error()
         }
     }
 

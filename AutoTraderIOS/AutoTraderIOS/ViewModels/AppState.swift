@@ -64,7 +64,7 @@ final class AppState: ObservableObject {
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.fetchStatus()
-                try? await Task.sleep(for: .seconds(15))
+                try? await Task.sleep(for: .seconds(5))
             }
         }
     }
