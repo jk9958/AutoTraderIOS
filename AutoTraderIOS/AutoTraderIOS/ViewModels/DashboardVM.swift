@@ -10,6 +10,9 @@ final class DashboardVM: ObservableObject {
     @Published var showFyersAuth = false
     @Published var fyersAuthURL: URL?
 
+    @Published var showKiteAuth = false
+    @Published var kiteAuthURL: URL?
+
     @Published var showTradesmartAuth = false
     @Published var tradesmartAuthURL: URL?
 
@@ -61,6 +64,30 @@ final class DashboardVM: ObservableObject {
             let val = status.tokens?["fyers"] ?? ""
             if !val.contains("updated") && !val.contains("loaded") && !val.contains("active") {
                 present(info: "Fyers login may not have completed — try again.")
+            }
+        }
+    }
+
+    // MARK: - Kite OAuth
+
+    func openKiteAuth(appState: AppState) {
+        do {
+            kiteAuthURL = try appState.client.kiteAuthURL()
+            showKiteAuth = true
+        } catch let err as APIError {
+            present(error: err.errorDescription ?? "Unknown error")
+        } catch {
+            present(error: error.localizedDescription)
+        }
+    }
+
+    func handleKiteAuthDismiss(appState: AppState) async {
+        showKiteAuth = false
+        await appState.fetchStatus()
+        if let status = appState.serverStatus {
+            let val = status.tokens?["kite"] ?? ""
+            if !val.contains("updated") && !val.contains("loaded") && !val.contains("active") {
+                present(info: "Kite login may not have completed — try again.")
             }
         }
     }

@@ -123,6 +123,12 @@ struct DashboardView: View {
                         .disabled(vm.isSavingFyersToEnv)
 
                         Button {
+                            vm.openKiteAuth(appState: appState)
+                        } label: {
+                            Label("Login with Kite", systemImage: "arrow.up.right.square")
+                        }
+
+                        Button {
                             vm.openTradesmartAuth(appState: appState)
                         } label: {
                             Label("Login with TradeSmart", systemImage: "arrow.up.right.square")
@@ -165,6 +171,15 @@ struct DashboardView: View {
                         .ignoresSafeArea()
                         .onDisappear {
                             Task { await vm.handleFyersAuthDismiss(appState: appState) }
+                        }
+                }
+            }
+            .sheet(isPresented: $vm.showKiteAuth) {
+                if let url = vm.kiteAuthURL {
+                    SafariView(url: url)
+                        .ignoresSafeArea()
+                        .onDisappear {
+                            Task { await vm.handleKiteAuthDismiss(appState: appState) }
                         }
                 }
             }

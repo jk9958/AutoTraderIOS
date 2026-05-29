@@ -210,6 +210,13 @@ struct APIClient {
         return url
     }
 
+    func kiteAuthURL() throws -> URL {
+        guard let url = URL(string: baseURL + "/auth/kite") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        return url
+    }
+
     // MARK: - Private
 
     private func fetch(_ path: String, timeout: TimeInterval) async throws -> (Data, URLResponse) {
