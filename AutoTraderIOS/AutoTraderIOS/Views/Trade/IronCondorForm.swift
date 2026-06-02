@@ -76,24 +76,29 @@ struct IronCondorDetailView: View {
                 .disabled(vm.isEstimatingMargin)
 
                 if let m = vm.marginEstimate {
-                    LabeledContent("Required") {
-                        Text("₹\(m.marginRequired.formatted())")
+                    LabeledContent("Total Margin") {
+                        Text("₹\(Int(m.marginTotal).formatted())")
                             .font(.headline.monospacedDigit())
                     }
                     LabeledContent("Per Lot") {
-                        Text("₹\(m.perLot.formatted())")
+                        Text("₹\(Int(m.marginPerLot).formatted())")
                             .monospacedDigit()
                     }
                     LabeledContent("Spot / ATM") {
                         Text("\(m.spot.formatted(.number.precision(.fractionLength(0)))) / \(m.atm)")
                             .monospacedDigit()
                     }
-                    LabeledContent("Method") {
-                        Text(m.method == "fyers_span" ? "Fyers SPAN" : "Formula")
-                            .foregroundStyle(m.method == "fyers_span" ? .green : .orange)
+                    LabeledContent("Net Credit Est.") {
+                        Text(String(format: "%.1f pts", m.netCreditEst))
+                            .monospacedDigit()
+                    }
+                    LabeledContent("Max Loss") {
+                        Text("₹\(Int(m.maxLossInr).formatted())  (\(String(format: "%.0f", m.maxLossPts)) pts)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.red)
                     }
                     LabeledContent("Strikes") {
-                        Text("S:\(m.legs.shortPe)/\(m.legs.shortCe)  L:\(m.legs.longPe)/\(m.legs.longCe)")
+                        Text("S:\(m.shortPe)/\(m.shortCe)  L:\(m.longPe)/\(m.longCe)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }

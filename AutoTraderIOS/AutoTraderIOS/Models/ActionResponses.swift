@@ -47,9 +47,8 @@ struct MetricsResponse: Codable {
     }
 
     struct MetricBucket: Codable {
-        let window: String?
-        let calls: Int?
-        let bytes: Int?
+        let bucket: String?
+        let count: Int?
     }
 }
 
@@ -57,24 +56,48 @@ struct IronCondorParams: Encodable {
     var expiry: String
     var instrument: String = "nifty"
     var lots: Int = 1
-    var spreadPts: Int = 400
+    var spreadPts: Int = 600
     var wingPts: Int = 200
+    var hardStopBuffer: Int = 50
     var profitTarget: Double = 0.50
     var slMultiplier: Double = 1.0
     var entryStart: String = "09:30"
     var entryCutoff: String = "11:00"
     var eodExit: String = "15:15"
+    var holdOvernight: Bool = false
     var dryRun: Bool = true
 
     enum CodingKeys: String, CodingKey {
         case expiry, instrument, lots
         case spreadPts = "spread_pts"
         case wingPts = "wing_pts"
+        case hardStopBuffer = "hard_stop_buffer"
         case profitTarget = "profit_target"
         case slMultiplier = "sl_multiplier"
         case entryStart = "entry_start"
         case entryCutoff = "entry_cutoff"
         case eodExit = "eod_exit"
+        case holdOvernight = "hold_overnight"
+        case dryRun = "dry_run"
+    }
+}
+
+struct VixScalpParams: Encodable {
+    var lots: Int = 1
+    var minVix: Double = 14.0
+    var vixSpikePct: Double = 0.015
+    var vixLookback: Int = 6
+    var profitTarget: Double = 0.50
+    var stopLoss: Double = 0.30
+    var dryRun: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case lots
+        case minVix = "min_vix"
+        case vixSpikePct = "vix_spike_pct"
+        case vixLookback = "vix_lookback"
+        case profitTarget = "profit_target"
+        case stopLoss = "stop_loss"
         case dryRun = "dry_run"
     }
 }

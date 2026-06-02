@@ -92,6 +92,17 @@ struct APIClient {
         return try decode(StartResponse.self, from: data)
     }
 
+    // MARK: - Start VIX Scalp
+
+    func startVixScalp(_ params: VixScalpParams) async throws -> StartResponse {
+        Self.logger.debug("→ POST /start/vix-scalp")
+        var req = try urlRequest("/start/vix-scalp", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(params)
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(StartResponse.self, from: data)
+    }
+
     // MARK: - Start Simple Engine
 
     func startEngine(name: String, dryRun: Bool) async throws -> StartResponse {

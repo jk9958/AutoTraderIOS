@@ -22,16 +22,16 @@ struct TradeView: View {
 
                     NavigationLink {
                         SimpleStrategyView(
-                            title: "Scalping",
-                            dryRun: $vm.scalpingDryRun,
+                            title: "VIX Scalp",
+                            dryRun: $vm.vixScalpDryRun,
                             vm: vm,
-                            onLaunch: { vm.launchScalping(appState: appState) }
+                            onLaunch: { vm.launchVixScalp(appState: appState) }
                         )
                         .environmentObject(appState)
                     } label: {
                         strategyRow(
-                            title: "Scalping",
-                            subtitle: "Short-term momentum strategy",
+                            title: "VIX Scalp",
+                            subtitle: "Intraday ATM PUT on VIX spike",
                             icon: "bolt.fill",
                             color: .orange
                         )

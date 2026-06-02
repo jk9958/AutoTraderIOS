@@ -9,6 +9,7 @@ struct ServerStatus: Codable {
     let tokens: [String: String]?
     let paperTrading: String?
     let nextExpiry: String?
+    let fyersAccessToken: String?
 
     enum CodingKeys: String, CodingKey {
         case running
@@ -19,6 +20,7 @@ struct ServerStatus: Codable {
         case tokens
         case paperTrading = "paper_trading"
         case nextExpiry = "next_expiry"
+        case fyersAccessToken = "fyers_access_token"
     }
 
     var isPaperTrading: Bool { paperTrading == "true" || paperTrading == "1" }

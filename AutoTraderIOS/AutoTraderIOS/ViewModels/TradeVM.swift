@@ -30,8 +30,8 @@ final class TradeVM: ObservableObject {
     @Published var icEodExit: String
     @Published var icDryRun: Bool
 
-    // Scalping
-    @Published var scalpingDryRun = true
+    // VIX Scalp
+    @Published var vixScalpDryRun = true
 
     // Options
     @Published var optionsDryRun = true
@@ -54,7 +54,7 @@ final class TradeVM: ObservableObject {
         icExpiry      = defaults.string(forKey: Keys.expiry) ?? nextExpiry
         icInstrument  = defaults.string(forKey: Keys.instrument) ?? "nifty"
         icLots        = defaults.integer(forKey: Keys.lots) > 0 ? defaults.integer(forKey: Keys.lots) : 1
-        icSpreadPts   = defaults.integer(forKey: Keys.spreadPts) > 0 ? defaults.integer(forKey: Keys.spreadPts) : 400
+        icSpreadPts   = defaults.integer(forKey: Keys.spreadPts) > 0 ? defaults.integer(forKey: Keys.spreadPts) : 600
         icWingPts     = defaults.integer(forKey: Keys.wingPts) > 0 ? defaults.integer(forKey: Keys.wingPts) : 200
         let pt = defaults.double(forKey: Keys.profitTarget)
         icProfitTarget = pt > 0 ? pt : 0.50
@@ -112,18 +112,38 @@ final class TradeVM: ObservableObject {
         }
     }
 
-    // MARK: - Launch Simple Engines
+    // MARK: - Launch VIX Scalp
 
-    func launchScalping(appState: AppState) {
-        if !scalpingDryRun {
+    func launchVixScalp(appState: AppState) {
+        if !vixScalpDryRun {
             pendingLaunchAction = { [weak self] in
-                await self?.doLaunchSimple("scalping", dryRun: self?.scalpingDryRun ?? true, appState: appState)
+                await self?.doLaunchVixScalp(appState: appState)
             }
             showLiveConfirmation = true
             Haptics.warning()
             return
         }
-        Task { await doLaunchSimple("scalping", dryRun: scalpingDryRun, appState: appState) }
+        Task { await doLaunchVixScalp(appState: appState) }
+    }
+
+    private func doLaunchVixScalp(appState: AppState) async {
+        isLaunching = true
+        launchError = nil
+        launchSuccess = nil
+        defer { isLaunching = false }
+        let params = VixScalpParams(dryRun: vixScalpDryRun)
+        do {
+            let resp = try await appState.client.startVixScalp(params)
+            launchSuccess = "Started: \(resp.engine ?? "vix-scalp")"
+            Haptics.success()
+            await appState.fetchStatus()
+        } catch let err as APIError {
+            launchError = err.errorDescription
+            Haptics.error()
+        } catch {
+            launchError = error.localizedDescription
+            Haptics.error()
+        }
     }
 
     func launchOptions(appState: AppState) {
