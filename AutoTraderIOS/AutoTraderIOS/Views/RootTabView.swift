@@ -9,12 +9,13 @@ struct RootTabView: View {
                 .tabItem { Label("Status", systemImage: "gauge.with.needle") }
             TradeView()
                 .tabItem { Label("Trade", systemImage: "bolt.fill") }
+            TrendAgentView()
+                .tabItem { Label("Trend", systemImage: "brain.head.profile") }
             LogsView()
                 .tabItem { Label("Logs", systemImage: "doc.text.magnifyingglass") }
             TradesView()
                 .tabItem { Label("Positions", systemImage: "chart.line.uptrend.xyaxis") }
         }
-        .tint(Theme.blue)
-        .preferredColorScheme(.dark)
+        .tint(.blue)
     }
 }

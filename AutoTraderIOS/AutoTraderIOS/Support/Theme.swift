@@ -1,20 +1,68 @@
 import SwiftUI
 
 enum Theme {
-    static let background    = Color(hex: "0d0d0f")
-    static let cardBg        = Color(hex: "1c1c1e")
-    static let glassBg       = Color(hex: "1c1c1e").opacity(0.6)
-    static let glassAccent   = Color(hex: "2a2a2d").opacity(0.5)
-    static let textPrimary   = Color(hex: "e2e2e7")
-    static let textSecondary = Color(hex: "8e8e93")
-    static let green         = Color(hex: "2ecc71")
-    static let blue          = Color(hex: "3a7bd5")
-    static let orange        = Color(hex: "e67e22")
-    static let red           = Color(hex: "e74c3c")
-    static let successGreen  = Color(hex: "27ae60")
-    static let radius: CGFloat = 14
-    static let pad: CGFloat    = 16
+    // MARK: - Accent Colors
+    static let profitGreen = Color(red: 0.18, green: 0.80, blue: 0.44)
+    static let lossRed     = Color(red: 0.91, green: 0.30, blue: 0.24)
+
+    // Legacy aliases used across the app
+    static let green        = Color.green
+    static let blue         = Color.blue
+    static let orange       = Color.orange
+    static let red          = Color.red
+    static let successGreen = Color.green
+
+    // MARK: - Geometry
+    static let radius: CGFloat     = 20
+    static let cardRadius: CGFloat = 16
+    static let pad: CGFloat        = 16
+    static let gutter: CGFloat     = 12
 }
+
+// MARK: - Glass Card Modifier
+
+private struct GlassCardModifier: ViewModifier {
+    let radius: CGFloat
+    let material: Material
+
+    func body(content: Content) -> some View {
+        content
+            .background(material, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.6
+                    )
+            )
+            .shadow(color: .black.opacity(0.14), radius: 18, x: 0, y: 8)
+    }
+}
+
+extension View {
+    func glassCard(radius: CGFloat = Theme.cardRadius, material: Material = .ultraThinMaterial) -> some View {
+        modifier(GlassCardModifier(radius: radius, material: material))
+    }
+
+    func thinGlassCard(radius: CGFloat = Theme.cardRadius) -> some View {
+        modifier(GlassCardModifier(radius: radius, material: .thinMaterial))
+    }
+
+    // Legacy compat — used by old call sites
+    func cardStyle() -> some View {
+        padding(Theme.pad).glassCard()
+    }
+
+    func glassStyle() -> some View {
+        padding(Theme.pad).glassCard()
+    }
+}
+
+// MARK: - Color hex init (compatibility)
 
 extension Color {
     init(hex: String) {
@@ -28,43 +76,6 @@ extension Color {
         case 8:  (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
         default: (a, r, g, b) = (255, 255, 255, 255)
         }
-        self.init(.sRGB,
-                  red: Double(r) / 255,
-                  green: Double(g) / 255,
-                  blue: Double(b) / 255,
-                  opacity: Double(a) / 255)
-    }
-}
-
-extension View {
-    func cardStyle() -> some View {
-        self
-            .padding(Theme.pad)
-            .background(Theme.cardBg)
-            .cornerRadius(Theme.radius)
-    }
-
-    func glassStyle() -> some View {
-        self
-            .padding(Theme.pad)
-            .background(
-                ZStack {
-                    Theme.glassBg
-                    RoundedRectangle(cornerRadius: Theme.radius)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.1),
-                                    Color.white.opacity(0.05)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                }
-            )
-            .cornerRadius(Theme.radius)
-            .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 8)
+        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
     }
 }

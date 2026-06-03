@@ -1,13 +1,8 @@
 import Foundation
 
 struct MTMResponse: Codable {
-    let marketOpen: Bool?
+    let marketOpen: Bool?   // decoded from "market_open" via convertFromSnakeCase
     let mtm: MTMData?
-
-    enum CodingKeys: String, CodingKey {
-        case marketOpen = "market_open"
-        case mtm
-    }
 }
 
 struct MTMData: Codable {

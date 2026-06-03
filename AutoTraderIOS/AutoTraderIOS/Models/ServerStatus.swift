@@ -11,17 +11,10 @@ struct ServerStatus: Codable {
     let nextExpiry: String?
     let fyersAccessToken: String?
 
-    enum CodingKeys: String, CodingKey {
-        case running
-        case engine
-        case startedAt = "started_at"
-        case exitCode = "exit_code"
-        case logLines = "log_lines"
-        case tokens
-        case paperTrading = "paper_trading"
-        case nextExpiry = "next_expiry"
-        case fyersAccessToken = "fyers_access_token"
-    }
+    // NOTE: No explicit CodingKeys. The shared decoder uses
+    // `.convertFromSnakeCase`, which maps e.g. "started_at" → startedAt
+    // automatically. Adding snake_case CodingKeys here would BREAK decoding
+    // (the strategy converts the JSON key before matching the CodingKey).
 
     var isPaperTrading: Bool { paperTrading == "true" || paperTrading == "1" }
 

@@ -11,15 +11,15 @@ struct StopResponse: Codable {
     let engine: String?
 }
 
+// NOTE: Response structs below have NO explicit CodingKeys — the shared
+// decoder's `.convertFromSnakeCase` maps snake_case JSON onto these camelCase
+// properties (e.g. "updated_at" → updatedAt, "per_5min" → per5min). Adding
+// snake_case CodingKeys here would break decoding.
+
 struct TokenResponse: Codable {
     let status: String
     let broker: String
     let updatedAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case status, broker
-        case updatedAt = "updated_at"
-    }
 }
 
 struct HealthResponse: Codable {
@@ -30,25 +30,19 @@ struct MessageResponse: Codable {
     let status: String
     let message: String?
     let updatedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case status, message
-        case updatedAt = "updated_at"
-    }
 }
 
 struct MetricsResponse: Codable {
     let per5min: [MetricBucket]?
     let totalLines: Int?
 
-    enum CodingKeys: String, CodingKey {
-        case per5min = "per_5min"
-        case totalLines = "total_lines"
-    }
-
     struct MetricBucket: Codable {
-        let bucket: String?
-        let count: Int?
+        let interval: String?
+        let lines: Int?
+        let sent: Int?
+        let recv: Int?
+        let total: Int?
+        let totalFmt: String?
     }
 }
 

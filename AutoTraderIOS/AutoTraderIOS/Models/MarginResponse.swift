@@ -1,17 +1,17 @@
 struct MarginResponse: Decodable {
-    let instrument: String
-    let lots: Int
-    let lotSize: Int
-    let spot: Double
-    let atm: Int
-    let shortCe: Int
-    let longCe: Int
-    let shortPe: Int
-    let longPe: Int
-    let shortCeSym: String?
-    let netCreditEst: Double
-    let maxLossPts: Double
-    let maxLossInr: Double
-    let marginPerLot: Double
-    let marginTotal: Double
+    struct Legs: Decodable {
+        let shortPe: Int
+        let longPe:  Int
+        let shortCe: Int
+        let longCe:  Int
+    }
+    let marginRequired: Int
+    let perLot:         Int
+    let method:         String
+    let spot:           Double
+    let atm:            Int
+    let legs:           Legs
+    let lotSize:        Int
+    let lots:           Int
+    let qty:            Int
 }

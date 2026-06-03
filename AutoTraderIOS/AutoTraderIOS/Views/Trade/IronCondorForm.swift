@@ -9,11 +9,13 @@ struct IronCondorDetailView: View {
     var body: some View {
         Form {
             Section("Contract") {
-                TextField("Expiry (YYMMDD)", text: $vm.icExpiry)
-                    .keyboardType(.numberPad)
+                TextField("Expiry (e.g. 03Jun25)", text: $vm.icExpiry)
+                    .keyboardType(.asciiCapable)
+                    .autocorrectionDisabled()
                 Picker("Instrument", selection: $vm.icInstrument) {
                     Text("NIFTY").tag("nifty")
                     Text("BANKNIFTY").tag("banknifty")
+                    Text("SENSEX").tag("sensex")
                 }
                 .pickerStyle(.segmented)
                 Stepper("Lots: \(vm.icLots)", value: $vm.icLots, in: 1...50)
@@ -21,44 +23,43 @@ struct IronCondorDetailView: View {
 
             Section("Structure") {
                 Stepper("Spread: \(vm.icSpreadPts) pts", value: $vm.icSpreadPts, in: 50...2000, step: 50)
-                Stepper("Wings: \(vm.icWingPts) pts", value: $vm.icWingPts, in: 50...2000, step: 50)
+                Stepper("Wings: \(vm.icWingPts) pts",   value: $vm.icWingPts,   in: 50...1000, step: 50)
+                Stepper("Hard Stop Buffer: \(vm.icHardStopBuffer) pts",
+                        value: $vm.icHardStopBuffer, in: 0...200, step: 10)
             }
 
             Section {
                 LabeledContent("Profit Target") {
-                    Text(String(format: "%.2f", vm.icProfitTarget))
-                        .monospacedDigit()
+                    Text(String(format: "%.2f", vm.icProfitTarget)).monospacedDigit()
                 }
-                Slider(value: $vm.icProfitTarget, in: 0.1...1.0, step: 0.05)
-                    .tint(.blue)
+                Slider(value: $vm.icProfitTarget, in: 0.1...1.0, step: 0.05).tint(.blue)
                     .listRowSeparator(.hidden)
                 LabeledContent("SL Multiplier") {
-                    Text(String(format: "%.1fx", vm.icSlMultiplier))
-                        .monospacedDigit()
+                    Text(String(format: "%.1fx", vm.icSlMultiplier)).monospacedDigit()
                 }
-                Slider(value: $vm.icSlMultiplier, in: 0.5...5.0, step: 0.1)
-                    .tint(.orange)
+                Slider(value: $vm.icSlMultiplier, in: 0.5...5.0, step: 0.1).tint(.orange)
                     .listRowSeparator(.hidden)
             } header: {
-                Text("Risk Management")
+                Text("Risk")
             }
 
             Section("Schedule") {
-                LabeledContent("Start") {
-                    TextField("HH:MM", text: $vm.icEntryStart)
+                LabeledContent("Entry Start") {
+                    TextField("09:30", text: $vm.icEntryStart)
                         .keyboardType(.numbersAndPunctuation)
                         .multilineTextAlignment(.trailing)
                 }
-                LabeledContent("Cutoff") {
-                    TextField("HH:MM", text: $vm.icEntryCutoff)
+                LabeledContent("Entry Cutoff") {
+                    TextField("11:00", text: $vm.icEntryCutoff)
                         .keyboardType(.numbersAndPunctuation)
                         .multilineTextAlignment(.trailing)
                 }
                 LabeledContent("EOD Exit") {
-                    TextField("HH:MM", text: $vm.icEodExit)
+                    TextField("15:15", text: $vm.icEodExit)
                         .keyboardType(.numbersAndPunctuation)
                         .multilineTextAlignment(.trailing)
                 }
+                Toggle("Hold Overnight", isOn: $vm.icHoldOvernight)
             }
 
             Section {
@@ -76,29 +77,24 @@ struct IronCondorDetailView: View {
                 .disabled(vm.isEstimatingMargin)
 
                 if let m = vm.marginEstimate {
-                    LabeledContent("Total Margin") {
-                        Text("₹\(Int(m.marginTotal).formatted())")
+                    LabeledContent("Required") {
+                        Text("₹\(m.marginRequired.formatted())")
                             .font(.headline.monospacedDigit())
                     }
                     LabeledContent("Per Lot") {
-                        Text("₹\(Int(m.marginPerLot).formatted())")
+                        Text("₹\(m.perLot.formatted())")
                             .monospacedDigit()
                     }
                     LabeledContent("Spot / ATM") {
                         Text("\(m.spot.formatted(.number.precision(.fractionLength(0)))) / \(m.atm)")
                             .monospacedDigit()
                     }
-                    LabeledContent("Net Credit Est.") {
-                        Text(String(format: "%.1f pts", m.netCreditEst))
-                            .monospacedDigit()
-                    }
-                    LabeledContent("Max Loss") {
-                        Text("₹\(Int(m.maxLossInr).formatted())  (\(String(format: "%.0f", m.maxLossPts)) pts)")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.red)
+                    LabeledContent("Method") {
+                        Text(m.method == "fyers_span" ? "Fyers SPAN" : "Formula")
+                            .foregroundStyle(m.method == "fyers_span" ? .green : .orange)
                     }
                     LabeledContent("Strikes") {
-                        Text("S:\(m.shortPe)/\(m.shortCe)  L:\(m.longPe)/\(m.longCe)")
+                        Text("S:\(m.legs.shortPe)/\(m.legs.shortCe)  L:\(m.legs.longPe)/\(m.legs.longCe)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
@@ -133,27 +129,23 @@ struct IronCondorDetailView: View {
                     HStack {
                         Spacer()
                         if vm.isLaunching {
-                            ProgressView()
-                                .progressViewStyle(.circular)
+                            ProgressView().progressViewStyle(.circular)
                                 .tint(vm.icDryRun ? .blue : .red)
                                 .padding(.trailing, 6)
                         }
                         Text(vm.isLaunching ? "Launching…" : "Launch Iron Condor")
                             .foregroundStyle(vm.icDryRun ? .blue : .red)
+                            .font(.headline)
                         Spacer()
                     }
                 }
                 .disabled(engineRunning || vm.isLaunching)
 
                 if let success = vm.launchSuccess {
-                    Label(success, systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.caption)
+                    Label(success, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
                 }
                 if let err = vm.launchError {
-                    Label(err, systemImage: "exclamationmark.circle")
-                        .foregroundStyle(.red)
-                        .font(.caption)
+                    Label(err, systemImage: "exclamationmark.circle").foregroundStyle(.red).font(.caption)
                 }
             } header: {
                 Text("Execution")

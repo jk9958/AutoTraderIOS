@@ -114,6 +114,66 @@ struct APIClient {
         return try decode(StartResponse.self, from: data)
     }
 
+    // MARK: - Trend Agent
+
+    func startTrendAgent(_ params: TrendAgentParams) async throws -> StartResponse {
+        Self.logger.debug("→ POST /start/trend-agent")
+        var req = try urlRequest("/start/trend-agent", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(params)
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(StartResponse.self, from: data)
+    }
+
+    func stopTrendAgent() async throws -> StopResponse {
+        Self.logger.debug("→ POST /stop/trend-agent")
+        var req = try urlRequest("/stop/trend-agent", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(StopResponse.self, from: data)
+    }
+
+    func trendAgentStatus() async throws -> TrendAgentStatus {
+        Self.logger.debug("→ GET /trend-agent/status")
+        let (data, response) = try await fetch("/trend-agent/status", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(TrendAgentStatus.self, from: data)
+    }
+
+    func trendAgentSignals() async throws -> TrendSignals {
+        Self.logger.debug("→ GET /trend-agent/signals")
+        let (data, response) = try await fetch("/trend-agent/signals", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(TrendSignals.self, from: data)
+    }
+
+    func trendAgentLearning() async throws -> TrendLearning {
+        Self.logger.debug("→ GET /trend-agent/learning")
+        let (data, response) = try await fetch("/trend-agent/learning", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(TrendLearning.self, from: data)
+    }
+
+    func trendAgentTrades() async throws -> TrendTradesResponse {
+        Self.logger.debug("→ GET /trend-agent/trades")
+        let (data, response) = try await fetch("/trend-agent/trades", timeout: Self.actionTimeout)
+        try validate(response, data: data)
+        return try decode(TrendTradesResponse.self, from: data)
+    }
+
+    func trendAgentLogs(lines: Int = 200) async throws -> LogsResponse {
+        Self.logger.debug("→ GET /trend-agent/logs?lines=\(lines)")
+        guard var comps = URLComponents(string: baseURL + "/trend-agent/logs") else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        comps.queryItems = [URLQueryItem(name: "lines", value: String(lines))]
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogsResponse.self, from: data)
+    }
+
     // MARK: - Stop
 
     func stop() async throws -> StopResponse {
