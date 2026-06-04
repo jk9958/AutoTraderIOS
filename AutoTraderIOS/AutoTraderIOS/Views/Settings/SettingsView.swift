@@ -10,6 +10,7 @@ struct SettingsView: View {
     /// Local draft so we don't write the Keychain + rebuild the client on every
     /// keystroke; committed on submit / Done / dismiss.
     @State private var apiKeyDraft = ""
+    @State private var revealKey = false
 
     private func commitAPIKey() {
         if apiKeyDraft != appState.apiKey { appState.apiKey = apiKeyDraft }
@@ -76,11 +77,34 @@ struct SettingsView: View {
     @ViewBuilder
     private var apiKeySection: some View {
         Section {
-            SecureField("Admin access code", text: $apiKeyDraft)
+            HStack {
+                Group {
+                    if revealKey {
+                        TextField("Admin access code", text: $apiKeyDraft)
+                    } else {
+                        SecureField("Admin access code", text: $apiKeyDraft)
+                    }
+                }
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.done)
                 .onSubmit { commitAPIKey() }
+
+                Button { revealKey.toggle() } label: {
+                    Image(systemName: revealKey ? "eye.slash" : "eye")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(revealKey ? "Hide access code" : "Show access code")
+            }
+
+            // Clear status so a saved (masked) code doesn't look missing.
+            HStack(spacing: 6) {
+                Image(systemName: keyStatus.icon).foregroundStyle(keyStatus.color)
+                Text(keyStatus.text).foregroundStyle(.secondary)
+            }
+            .font(.caption)
+
             if appState.hasAPIKey {
                 Button {
                     newKeyInput = ""
@@ -93,9 +117,19 @@ struct SettingsView: View {
         } header: {
             Text("Access code")
         } footer: {
-            Text("This code lets the app create and control your bots. Whoever set up your server gives it to you. It's stored securely on this device only.")
+            Text("This code lets the app create and control your bots. Whoever set up your server gives it to you. It's stored securely on this device only — tap the eye to check it.")
         }
         .sheet(isPresented: $showRotate) { rotateSheet }
+    }
+
+    private var keyStatus: (icon: String, color: Color, text: String) {
+        if appState.hasAPIKey && apiKeyDraft == appState.apiKey {
+            return ("checkmark.circle.fill", .green, "Access code saved on this device")
+        } else if !apiKeyDraft.isEmpty {
+            return ("pencil.circle.fill", .orange, "Tap Done to save this code")
+        } else {
+            return ("exclamationmark.circle", .orange, "No access code yet — paste the one your provider gave you")
+        }
     }
 
     private var rotateSheet: some View {
