@@ -11,10 +11,13 @@ struct APIClient {
     private static let actionTimeout: TimeInterval = 60
 
     private static func makeSession() -> URLSession {
-        let config = URLSessionConfiguration.default
+        // Ephemeral: no on-disk caching of responses (which can carry config/token
+        // material) and, crucially, NO custom trust delegate — the system performs
+        // full TLS certificate validation against the public cert. Never bypass this.
+        let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = pollTimeout
         config.timeoutIntervalForResource = 60
-        return URLSession(configuration: config, delegate: TrustDelegate(), delegateQueue: nil)
+        return URLSession(configuration: config)
     }
 
     private static let decoder: JSONDecoder = {
@@ -481,13 +484,10 @@ struct APIClient {
         do {
             let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse {
-                Self.logger.debug("← \(http.statusCode) \(request.url?.lastPathComponent ?? "?")")
+                // Status + size only. Never log bodies — responses can carry config
+                // and token material.
+                Self.logger.debug("← \(http.statusCode) \(request.url?.lastPathComponent ?? "?") (\(data.count) bytes)")
             }
-            #if DEBUG
-            if let body = String(data: data, encoding: .utf8) {
-                Self.logger.debug("← body: \(body)")
-            }
-            #endif
             return (data, response)
         } catch let err as URLError {
             Self.logger.error("✗ Request failed: \(err.code.rawValue) - \(request.url?.lastPathComponent ?? "?")")
@@ -524,7 +524,12 @@ struct APIClient {
         case 503:
             let detail = detailString()
             Self.logger.error("✗ 503: \(detail)")
-            throw APIError.serverKeyNotConfigured(detail: detail)
+            // Only the missing-API-key case gets the dedicated message; other 503s
+            // (restarts, proxy) are transient/retryable.
+            if detail.localizedCaseInsensitiveContains("API_KEY") {
+                throw APIError.serverKeyNotConfigured(detail: detail)
+            }
+            throw APIError.httpError(statusCode: 503, detail: detail)
         case 409:
             Self.logger.error("✗ Engine already running")
             throw APIError.engineAlreadyRunning
@@ -557,15 +562,3 @@ struct APIClient {
     }
 }
 
-private class TrustDelegate: NSObject, URLSessionDelegate {
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let serverTrust = challenge.protectionSpace.serverTrust else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-
-        let credential = URLCredential(trust: serverTrust)
-        completionHandler(.useCredential, credential)
-    }
-}

@@ -79,10 +79,8 @@ struct DashboardView: View {
             }
             .onAppear {
                 elapsed = elapsedIfRunning()
-                appState.startPolling()
-                appState.refreshNow()
+                appState.refreshNow()   // polling is app-scoped (RootTabView); don't start/stop it here
             }
-            .onDisappear { appState.stopPolling() }
             .onReceive(timer) { _ in elapsed = elapsedIfRunning() }
         }
     }

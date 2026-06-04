@@ -72,6 +72,7 @@ struct EngineDetailView: View {
         Button {
             Task {
                 await vm.lifecycle(action, client: appState.client)
+                appState.enginesStore.invalidate(vm.engineId)   // keep Home/Bots in sync
                 if action == .start { Analytics.shared.track(.botStarted(live: false)) }
             }
         } label: {
@@ -99,7 +100,10 @@ struct EngineDetailView: View {
                 if let dryRun = dryRunValue(in: cfg) {
                     Toggle(isOn: Binding(
                         get: { dryRun },
-                        set: { newVal in Task { await vm.patchParam("dry_run", value: .bool(newVal), client: appState.client) } }
+                        set: { newVal in Task {
+                            await vm.patchParam("dry_run", value: .bool(newVal), client: appState.client)
+                            appState.enginesStore.invalidate(vm.engineId)   // mode changed → re-sync
+                        } }
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Practice mode")

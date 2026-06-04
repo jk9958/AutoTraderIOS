@@ -28,6 +28,7 @@ struct RootTabView: View {
                 .tag(RootTab.more)
         }
         .tint(.blue)
+        .onAppear { appState.startPolling() }   // app-scoped; leaf screens must not stop it
         .fullScreenCover(isPresented: Binding(get: { !didOnboard }, set: { didOnboard = !$0 })) {
             OnboardingView()
         }

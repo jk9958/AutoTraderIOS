@@ -12,45 +12,50 @@ struct HomeAlert: Identifiable {
     let actionLabel: String
 }
 
-/// Aggregates everything the Home dashboard answers: which bots run, broker
-/// connection, live P&L, and system health. Partial failures degrade gracefully
-/// rather than blanking the screen.
+/// Home aggregates the shared bot list (`EnginesStore`) with live P&L (`/mtm`) and
+/// system health (`/health/deep`). The bot list itself lives in the store (single
+/// source of truth); this VM owns only the auxiliary signals and polls them while
+/// Home is on screen.
 @MainActor
 final class HomeVM: ObservableObject {
-    @Published var engines: Loadable<[EngineInfo]> = .idle
     @Published var liveMTM: MTMData?
     @Published var marketOpen: Bool?
     @Published var health: HealthDeepResponse?
     @Published var busyStopId: String?
     @Published var banner: String?
 
-    private var loadTask: Task<Void, Never>?
+    private var auxTask: Task<Void, Never>?
 
-    var runningBots: [EngineInfo] { (engines.value ?? []).filter { $0.runState == .running } }
-    var notRespondingBots: [EngineInfo] { (engines.value ?? []).filter { $0.runState == .stale } }
-    var totalBots: Int { (engines.value ?? []).count }
+    // MARK: Derived from the shared store
 
-    /// The bot to feature in the hero card (first running, else first not-responding).
-    var primaryBot: EngineInfo? { runningBots.first ?? notRespondingBots.first }
+    func runningBots(_ engines: [EngineInfo]) -> [EngineInfo] { engines.filter { $0.runState == .running } }
+    func notRespondingBots(_ engines: [EngineInfo]) -> [EngineInfo] { engines.filter { $0.runState == .stale } }
+    /// Featured bot: first running, else first not-responding.
+    func primaryBot(_ engines: [EngineInfo]) -> EngineInfo? {
+        runningBots(engines).first ?? notRespondingBots(engines).first
+    }
 
-    func refresh(client: APIClient) {
-        loadTask?.cancel()
-        loadTask = Task { [weak self] in
-            guard let self else { return }
-            // Primary: the bot list. Secondary calls are best-effort.
-            do {
-                let resp = try await client.listEngines()
-                if Task.isCancelled { return }
-                engines = .loaded(resp.engines)
-            } catch is CancellationError {
-                return
-            } catch {
-                if engines.value == nil { engines = .failed(FriendlyError.from(error).message) }
+    // MARK: Auxiliary polling (live P&L + health)
+
+    func startAuxPolling(client: APIClient) {
+        guard auxTask == nil else { return }
+        auxTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshAux(client: client)
+                try? await Task.sleep(for: .seconds(5))
             }
-            async let mtm: () = loadMTM(client: client)
-            async let hp: () = loadHealth(client: client)
-            _ = await (mtm, hp)
         }
+    }
+
+    func stopAuxPolling() {
+        auxTask?.cancel()
+        auxTask = nil
+    }
+
+    func refreshAux(client: APIClient) async {
+        async let mtm: () = loadMTM(client: client)
+        async let hp: () = loadHealth(client: client)
+        _ = await (mtm, hp)
     }
 
     private func loadMTM(client: APIClient) async {
@@ -65,25 +70,25 @@ final class HomeVM: ObservableObject {
         do { health = try await client.healthDeep() } catch { /* non-critical */ }
     }
 
-    func stopPrimary(client: APIClient) async {
-        guard let bot = primaryBot, busyStopId == nil else { return }
+    // MARK: Actions
+
+    func stop(_ bot: EngineInfo, store: EnginesStore) async {
+        guard busyStopId == nil else { return }
         busyStopId = bot.engineId
         defer { busyStopId = nil }
-        do {
-            _ = try await client.engineLifecycle(bot.engineId, action: .stop)
-            Haptics.success()
-            Analytics.shared.track(.botStopped)
-            refresh(client: client)
-        } catch {
-            banner = FriendlyError.from(error).message
-            Haptics.error()
-        }
+        await store.perform(.stop, on: bot.engineId)
+        Analytics.shared.track(.botStopped)
     }
 
-    /// Builds the prioritized alert list from current snapshots + broker status.
-    func alerts(brokerConnected: Bool) -> [HomeAlert] {
+    func restart(_ id: String, store: EnginesStore) async {
+        await store.perform(.restart, on: id)
+    }
+
+    // MARK: Alerts
+
+    func alerts(engines: [EngineInfo], brokerConnected: Bool) -> [HomeAlert] {
         var out: [HomeAlert] = []
-        for bot in notRespondingBots {
+        for bot in notRespondingBots(engines) {
             out.append(.init(kind: .botNotResponding(bot.engineId),
                              title: "\(BotNaming.display(bot.engineId)) isn't responding",
                              message: "It hasn't checked in recently. Restarting usually fixes this.",

@@ -51,8 +51,12 @@ final class AppState: ObservableObject {
     /// Network reachability, mirrored from `NetworkMonitor` for views to observe.
     @Published private(set) var isOnline = true
 
+    /// Single source of truth for the bot list, shared by all tabs.
+    let enginesStore: EnginesStore
+
     private let networkMonitor = NetworkMonitor()
     private var monitorCancellable: AnyCancellable?
+    private var storeCancellable: AnyCancellable?
     private var pollingTask: Task<Void, Never>?
     private var isFirstPollFailure = true
 
@@ -66,9 +70,19 @@ final class AppState: ObservableObject {
         c.apiKey = key.isEmpty ? nil : key
         self.client = c
         self.isOnline = networkMonitor.isOnline
+
+        // The store resolves the latest client each call, so base-URL/key changes apply.
+        var clientBox: () -> APIClient = { c }
+        self.enginesStore = EnginesStore(service: { clientBox() })
+
         monitorCancellable = networkMonitor.$isOnline
             .receive(on: DispatchQueue.main)
             .sink { [weak self] online in self?.isOnline = online }
+        // Re-emit when the shared store changes so views observing AppState refresh.
+        storeCancellable = enginesStore.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+        // Now that self is fully initialized, point the store at the live client.
+        clientBox = { [unowned self] in self.client }
         startLifecycleObservers()
     }
 
@@ -91,6 +105,7 @@ final class AppState: ObservableObject {
     // MARK: - Polling
 
     func startPolling() {
+        enginesStore.startPolling()
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -101,6 +116,7 @@ final class AppState: ObservableObject {
     }
 
     func stopPolling() {
+        enginesStore.stopPolling()
         pollingTask?.cancel()
         pollingTask = nil
     }

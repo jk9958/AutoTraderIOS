@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// Novice-facing list of trading bots (multi-engine mobile API). Plain language,
-/// swipe to start/stop, context menu for more, and a guided create flow.
+/// Novice-facing list of trading bots (multi-engine mobile API). Reads the shared
+/// `EnginesStore` so it always agrees with Home. Plain language, swipe to
+/// start/stop, context menu for more, and a guided create flow.
 struct BotsListView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var vm = EnginesVM()
 
     @State private var showCreate = false
     @State private var showSettings = false
     @State private var pendingDelete: EngineInfo?
     @State private var searchText = ""
 
+    private var store: EnginesStore { appState.enginesStore }
+
     private var filtered: [EngineInfo] {
-        let all = vm.state.value ?? []
+        let all = store.engines
         guard !searchText.isEmpty else { return all }
         return all.filter {
             BotNaming.display($0.engineId).localizedCaseInsensitiveContains(searchText) ||
@@ -36,20 +38,20 @@ struct BotsListView: View {
                     }
                 }
                 .sheet(isPresented: $showCreate) {
-                    CreateBotWizard { vm.load(client: appState.client, showSpinner: false) }
+                    CreateBotWizard { Task { await store.refresh() } }
                 }
                 .sheet(isPresented: $showSettings) { SettingsView() }
-                .refreshable { vm.load(client: appState.client, showSpinner: false) }
-                .task { vm.load(client: appState.client) }
-                .onChange(of: vm.banner) { _, msg in
-                    if msg != nil { Task { try? await Task.sleep(for: .seconds(4)); vm.banner = nil } }
+                .refreshable { await store.refresh() }
+                .task { await store.refresh(showSpinner: true) }
+                .onChange(of: store.banner) { _, msg in
+                    if msg != nil { Task { try? await Task.sleep(for: .seconds(4)); store.banner = nil } }
                 }
         }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch vm.state {
+        switch store.state {
         case .idle, .loading:
             ProgressView("Loading your bots…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -57,7 +59,7 @@ struct BotsListView: View {
             ContentUnavailableView {
                 Label("Couldn't load your bots", systemImage: "exclamationmark.triangle")
             } description: { Text(msg) } actions: {
-                Button("Try Again") { vm.load(client: appState.client) }
+                Button("Try Again") { Task { await store.refresh(showSpinner: true) } }
             }
         case .loaded(let engines):
             list(engines)
@@ -82,7 +84,7 @@ struct BotsListView: View {
             }
         } else {
             List {
-                if let banner = vm.banner {
+                if let banner = store.banner {
                     Section {
                         Label(banner, systemImage: "exclamationmark.circle")
                             .font(.caption).foregroundStyle(.orange)
@@ -91,7 +93,7 @@ struct BotsListView: View {
                 Section {
                     ForEach(filtered) { bot in
                         NavigationLink(value: bot.engineId) {
-                            BotRow(bot: bot, busy: vm.busy.contains(bot.engineId))
+                            BotRow(bot: bot, busy: store.busy.contains(bot.engineId), practice: store.mode(for: bot.engineId))
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) { swipe(bot) }
                         .contextMenu { menu(bot) }
@@ -109,7 +111,7 @@ struct BotsListView: View {
             ) {
                 Button("Delete bot", role: .destructive) {
                     if let b = pendingDelete {
-                        Task { await vm.delete(b.engineId, client: appState.client); Analytics.shared.track(.botDeleted) }
+                        Task { await store.delete(b.engineId); Analytics.shared.track(.botDeleted) }
                     }
                     pendingDelete = nil
                 }
@@ -125,11 +127,11 @@ struct BotsListView: View {
         if appState.hasAPIKey {
             Button(role: .destructive) { pendingDelete = bot } label: { Label("Delete", systemImage: "trash") }
             if bot.runState == .running || bot.runState == .stale {
-                Button { Task { await vm.perform(.stop, on: bot.engineId, client: appState.client) } } label: {
+                Button { Task { await store.perform(.stop, on: bot.engineId) } } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }.tint(.orange)
             } else {
-                Button { Task { await vm.perform(.start, on: bot.engineId, client: appState.client); Analytics.shared.track(.botStarted(live: false)) } } label: {
+                Button { Task { await store.perform(.start, on: bot.engineId); Analytics.shared.track(.botStarted(live: false)) } } label: {
                     Label("Start", systemImage: "play.fill")
                 }.tint(Theme.profitGreen)
             }
@@ -139,9 +141,9 @@ struct BotsListView: View {
     @ViewBuilder
     private func menu(_ bot: EngineInfo) -> some View {
         if appState.hasAPIKey {
-            Button { Task { await vm.perform(.start, on: bot.engineId, client: appState.client) } } label: { Label("Start", systemImage: "play.fill") }
-            Button { Task { await vm.perform(.stop, on: bot.engineId, client: appState.client) } } label: { Label("Stop", systemImage: "stop.fill") }
-            Button { Task { await vm.perform(.restart, on: bot.engineId, client: appState.client) } } label: { Label("Restart", systemImage: "arrow.clockwise") }
+            Button { Task { await store.perform(.start, on: bot.engineId) } } label: { Label("Start", systemImage: "play.fill") }
+            Button { Task { await store.perform(.stop, on: bot.engineId) } } label: { Label("Stop", systemImage: "stop.fill") }
+            Button { Task { await store.perform(.restart, on: bot.engineId) } } label: { Label("Restart", systemImage: "arrow.clockwise") }
             Divider()
             Button(role: .destructive) { pendingDelete = bot } label: { Label("Delete", systemImage: "trash") }
         } else {
@@ -153,6 +155,8 @@ struct BotsListView: View {
 struct BotRow: View {
     let bot: EngineInfo
     let busy: Bool
+    /// Real Practice/Live mode for running bots (nil = unknown/stopped).
+    var practice: Bool?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -166,7 +170,14 @@ struct BotRow: View {
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if busy { ProgressView() } else { StatusChip(status: AppStatus(runState: bot.runState), compact: true) }
+            VStack(alignment: .trailing, spacing: 4) {
+                if busy { ProgressView() } else { StatusChip(status: AppStatus(runState: bot.runState), compact: true) }
+                if let practice, bot.runState == .running {
+                    Text(practice ? "Practice" : "Live")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(practice ? .orange : Theme.lossRed)
+                }
+            }
         }
         .padding(.vertical, 4)
     }

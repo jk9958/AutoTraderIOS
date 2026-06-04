@@ -56,4 +56,13 @@ enum JSONValue: Codable, Equatable {
         guard case .object(let o) = self else { return [] }
         return o.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
     }
+
+    /// Reads `params.dry_run` from an engine config object, if present.
+    /// Returns true=Practice, false=Live, nil=unknown.
+    var dryRunFlag: Bool? {
+        guard case .object(let root) = self,
+              case .object(let params)? = root["params"],
+              case .bool(let b)? = params["dry_run"] else { return nil }
+        return b
+    }
 }

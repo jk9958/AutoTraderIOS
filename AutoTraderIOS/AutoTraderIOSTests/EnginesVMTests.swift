@@ -88,10 +88,21 @@ struct EnginesVMTests {
 
     @Test func lifecycleActionHitsService() async {
         let mock = MockEngineService()
-        let vm = EnginesVM()
-        await vm.perform(.start, on: "bot_one", client: mock)
+        let store = EnginesStore(service: { mock })
+        await store.perform(.start, on: "bot_one")
         #expect(mock.lifecycleCalls.first?.0 == "bot_one")
         #expect(mock.lifecycleCalls.first?.1 == .start)
+    }
+
+    @Test func storeRefreshLoadsRunningModes() async {
+        let mock = MockEngineService()
+        mock.engines = [EngineInfo(engineId: "bot_one", broker: "fyers", strategy: "iron_condor",
+                                   status: "RUNNING", pid: 1, lastBeat: nil, stale: false)]
+        let store = EnginesStore(service: { mock })
+        await store.refresh()
+        // mock.engineConfig returns params.dry_run = true
+        #expect(store.mode(for: "bot_one") == true)
+        #expect(store.engines.count == 1)
     }
 
     @Test func tokenUpdateForwardsToService() async {

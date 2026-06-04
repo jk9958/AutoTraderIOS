@@ -12,75 +12,9 @@ enum Loadable<T> {
     var isLoading: Bool { if case .loading = self { return true } else { return false } }
 }
 
-// MARK: - Engines list
-
-@MainActor
-final class EnginesVM: ObservableObject {
-    @Published var state: Loadable<[EngineInfo]> = .idle
-    /// engine_ids with an in-flight lifecycle action (disables their row controls).
-    @Published var busy: Set<String> = []
-    @Published var banner: String?
-
-    private var loadTask: Task<Void, Never>?
-
-    func load(client: EngineServicing, showSpinner: Bool = true) {
-        loadTask?.cancel()
-        if showSpinner, state.value == nil { state = .loading }
-        loadTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let resp = try await client.listEngines()
-                if Task.isCancelled { return }
-                if !resp.ok, let err = resp.error {
-                    self.state = .failed(err)
-                } else {
-                    self.state = .loaded(resp.engines)
-                }
-            } catch is CancellationError {
-                return
-            } catch let err as APIError {
-                if self.state.value == nil { self.state = .failed(err.errorDescription ?? "Failed to load") }
-                else { self.banner = err.errorDescription }
-            } catch {
-                if self.state.value == nil { self.state = .failed(error.localizedDescription) }
-            }
-        }
-    }
-
-    func perform(_ action: EngineLifecycleAction, on id: String, client: EngineServicing) async {
-        guard !busy.contains(id) else { return }   // de-dupe concurrent taps
-        busy.insert(id)
-        defer { busy.remove(id) }
-        do {
-            _ = try await client.engineLifecycle(id, action: action)
-            Haptics.success()
-            load(client: client, showSpinner: false)
-        } catch let err as APIError {
-            banner = err.errorDescription
-            Haptics.error()
-        } catch {
-            banner = error.localizedDescription
-            Haptics.error()
-        }
-    }
-
-    func delete(_ id: String, client: EngineServicing) async {
-        guard !busy.contains(id) else { return }
-        busy.insert(id)
-        defer { busy.remove(id) }
-        do {
-            _ = try await client.deleteEngine(id)
-            Haptics.success()
-            load(client: client, showSpinner: false)
-        } catch let err as APIError {
-            banner = err.errorDescription
-            Haptics.error()
-        } catch {
-            banner = error.localizedDescription
-            Haptics.error()
-        }
-    }
-}
+// NOTE: The bot list + lifecycle/delete now live in the shared `EnginesStore`
+// (single source of truth across tabs). This file keeps the per-screen detail
+// and create view models.
 
 // MARK: - Engine detail
 

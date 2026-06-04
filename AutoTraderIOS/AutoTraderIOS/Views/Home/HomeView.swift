@@ -11,6 +11,8 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showDiagnostics = false
 
+    private var store: EnginesStore { appState.enginesStore }
+
     private var brokerConnected: Bool {
         if let tokens = appState.serverStatus?.tokens,
            tokens.values.contains(where: { $0.contains("updated") || $0.contains("loaded") || $0.contains("active") }) {
@@ -23,15 +25,11 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    if !appState.isOnline {
-                        offlineBanner
-                    }
-                    heroCard
-                    HStack(spacing: 12) {
-                        livePnlCard
-                        brokerCard
-                    }
-                    ForEach(vm.alerts(brokerConnected: brokerConnected)) { alert in
+                    if !appState.isOnline { offlineBanner }
+                    heroSection
+                    HStack(spacing: 12) { livePnlCard; brokerCard }
+                    let engines = store.engines
+                    ForEach(vm.alerts(engines: engines, brokerConnected: brokerConnected)) { alert in
                         alertCard(alert)
                     }
                     quickActions
@@ -47,100 +45,112 @@ struct HomeView: View {
                         .accessibilityLabel("Settings")
                 }
             }
-            .refreshable { vm.refresh(client: appState.client); await appState.fetchStatus() }
+            .refreshable { await store.refresh(); await vm.refreshAux(client: appState.client); await appState.fetchStatus() }
             .task {
-                vm.refresh(client: appState.client)
-                appState.startPolling()
+                appState.startPolling()                  // app-scoped (also polls the store)
+                vm.startAuxPolling(client: appState.client)
             }
+            .onDisappear { vm.stopAuxPolling() }
             .onChange(of: vm.banner) { _, msg in
                 if msg != nil { Task { try? await Task.sleep(for: .seconds(4)); vm.banner = nil } }
             }
             .sheet(isPresented: $showCreate) {
-                CreateBotWizard { vm.refresh(client: appState.client) }
+                CreateBotWizard { Task { await store.refresh() } }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .navigationDestination(isPresented: $showDiagnostics) { DiagnosticsView() }
         }
     }
 
-    // MARK: Hero
+    // MARK: Hero (handles loading / failed / empty / running)
 
     @ViewBuilder
-    private var heroCard: some View {
-        if let bot = vm.primaryBot {
-            let isLive = !isPracticeBot(bot)
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    StatusChip(status: AppStatus(runState: bot.runState))
-                    Spacer()
-                    ModeBadge(isPractice: !isLive)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(BotNaming.display(bot.engineId))
-                        .font(.title2.bold())
-                    Text("\(EngineStrategy.friendlyName(forRaw: bot.strategy)) · \(brokerLabel(bot.broker))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if vm.runningBots.count > 1 {
-                    Text("+ \(vm.runningBots.count - 1) more running")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                HStack(spacing: 10) {
-                    Button {
-                        Haptics.tap(); selection = .bots
-                    } label: {
-                        Label("Manage", systemImage: "slider.horizontal.3")
-                            .frame(maxWidth: .infinity)
-                    }
+    private var heroSection: some View {
+        switch store.state {
+        case .idle, .loading:
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Checking your bots…").font(.subheadline).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity).padding(36).glassCard()
+        case .failed(let msg):
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 34)).foregroundStyle(.orange)
+                Text("Couldn't load your bots").font(.headline)
+                Text(msg).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Try Again") { Task { await store.refresh(showSpinner: true) } }
                     .buttonStyle(.bordered)
-
-                    Button(role: .destructive) {
-                        Task { await vm.stopPrimary(client: appState.client) }
-                    } label: {
-                        HStack {
-                            if vm.busyStopId == bot.engineId { ProgressView().controlSize(.small) }
-                            Label("Stop", systemImage: "stop.fill")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .disabled(!appState.hasAPIKey || vm.busyStopId != nil)
-                }
             }
-            .padding(16)
-            .glassCard()
-        } else {
-            VStack(spacing: 14) {
-                Image(systemName: vm.totalBots == 0 ? "sparkles" : "moon.zzz.fill")
-                    .font(.system(size: 40)).foregroundStyle(.secondary)
-                Text(vm.totalBots == 0 ? "No bots yet" : "Nothing running")
-                    .font(.title3.weight(.semibold))
-                Text(vm.totalBots == 0
-                     ? "Create your first bot and try it in Practice mode — no real money."
-                     : "Your bots are stopped. Start one whenever you're ready.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button {
-                    if vm.totalBots == 0 { showCreate = true } else { selection = .bots }
-                } label: {
-                    Text(vm.totalBots == 0 ? "Create your first bot" : "Go to Bots")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(vm.totalBots == 0 && !appState.hasAPIKey)
-                if vm.totalBots == 0 && !appState.hasAPIKey {
-                    Text("Add your admin access code in Settings first.")
-                        .font(.caption).foregroundStyle(.tertiary)
-                }
+            .frame(maxWidth: .infinity).padding(24).glassCard()
+        case .loaded(let engines):
+            if let bot = vm.primaryBot(engines) {
+                runningHero(bot, runningCount: vm.runningBots(engines).count)
+            } else {
+                emptyHero(totalBots: engines.count)
             }
-            .frame(maxWidth: .infinity)
-            .padding(24)
-            .glassCard()
         }
+    }
+
+    private func runningHero(_ bot: EngineInfo, runningCount: Int) -> some View {
+        let practice = store.mode(for: bot.engineId)   // real dry_run, nil = unknown
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                StatusChip(status: AppStatus(runState: bot.runState))
+                Spacer()
+                ModeBadge(isPractice: practice)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(BotNaming.display(bot.engineId)).font(.title2.bold())
+                Text("\(EngineStrategy.friendlyName(forRaw: bot.strategy)) · \(brokerLabel(bot.broker))")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            if runningCount > 1 {
+                Text("+ \(runningCount - 1) more running").font(.caption).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                Button { Haptics.tap(); selection = .bots } label: {
+                    Label("Manage", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button(role: .destructive) {
+                    Task { await vm.stop(bot, store: store) }
+                } label: {
+                    HStack {
+                        if vm.busyStopId == bot.engineId { ProgressView().controlSize(.small) }
+                        Label("Stop", systemImage: "stop.fill")
+                    }.frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(.red)
+                .disabled(!appState.hasAPIKey || vm.busyStopId != nil)
+            }
+        }
+        .padding(16).glassCard()
+    }
+
+    private func emptyHero(totalBots: Int) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: totalBots == 0 ? "sparkles" : "moon.zzz.fill")
+                .font(.system(size: 40)).foregroundStyle(.secondary)
+            Text(totalBots == 0 ? "No bots yet" : "Nothing running")
+                .font(.title3.weight(.semibold))
+            Text(totalBots == 0
+                 ? "Create your first bot and try it in Practice mode — no real money."
+                 : "Your bots are stopped. Start one whenever you're ready.")
+                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Button {
+                if totalBots == 0 { showCreate = true } else { selection = .bots }
+            } label: {
+                Text(totalBots == 0 ? "Create your first bot" : "Go to Bots").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+            .disabled(totalBots == 0 && !appState.hasAPIKey)
+            if totalBots == 0 && !appState.hasAPIKey {
+                Text("Add your admin access code in Settings first.")
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity).padding(24).glassCard()
     }
 
     // MARK: Stat cards
@@ -171,42 +181,23 @@ struct HomeView: View {
     @ViewBuilder
     private func alertCard(_ alert: HomeAlert) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: alert.systemImage)
-                .font(.title3)
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
+            Image(systemName: alert.systemImage).font(.title3).foregroundStyle(.orange).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(alert.title).font(.subheadline.weight(.semibold))
                 Text(alert.message).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Button(alert.actionLabel) { handle(alert) }
-                .font(.caption.weight(.semibold))
-                .buttonStyle(.bordered)
+                .font(.caption.weight(.semibold)).buttonStyle(.bordered)
         }
-        .padding(12)
-        .thinGlassCard()
+        .padding(12).thinGlassCard()
     }
 
     private func handle(_ alert: HomeAlert) {
         switch alert.kind {
-        case .botNotResponding(let id):
-            Task { await restart(id) }
-        case .brokerDisconnected:
-            selection = .more
-        case .systemWarning, .systemFailed:
-            showDiagnostics = true
-        }
-    }
-
-    private func restart(_ id: String) async {
-        do {
-            _ = try await appState.client.engineLifecycle(id, action: .restart)
-            Haptics.success()
-            vm.refresh(client: appState.client)
-        } catch {
-            vm.banner = FriendlyError.from(error).message
-            Haptics.error()
+        case .botNotResponding(let id): Task { await vm.restart(id, store: store) }
+        case .brokerDisconnected:       selection = .more
+        case .systemWarning, .systemFailed: showDiagnostics = true
         }
     }
 
@@ -228,9 +219,7 @@ struct HomeView: View {
                 Image(systemName: icon).font(.title2).foregroundStyle(tint)
                 Text(title).font(.caption.weight(.medium)).foregroundStyle(.primary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .thinGlassCard()
+            .frame(maxWidth: .infinity).padding(.vertical, 16).thinGlassCard()
         }
         .buttonStyle(.plain)
     }
@@ -241,32 +230,19 @@ struct HomeView: View {
                                          @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             content()
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
-        .padding(14)
-        .glassCard()
+        .padding(14).glassCard()
     }
 
     private var offlineBanner: some View {
         Label("You're offline. Showing the last known info.", systemImage: "wifi.slash")
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.orange)
+            .font(.caption.weight(.medium)).foregroundStyle(.orange)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .thinGlassCard()
-    }
-
-    // MARK: Helpers
-
-    private func isPracticeBot(_ bot: EngineInfo) -> Bool {
-        // Heartbeat doesn't carry dry_run; default to the safe assumption (Practice)
-        // unless the global status says the running engine is live.
-        if appState.serverStatus?.isPaperTrading == false { return false }
-        return true
+            .padding(12).thinGlassCard()
     }
 
     private func brokerLabel(_ raw: String?) -> String {
@@ -275,16 +251,30 @@ struct HomeView: View {
     }
 }
 
-/// Practice / Live badge.
+/// Practice / Live badge. `nil` = mode not yet known (shows a neutral chip rather
+/// than guessing, since this gates a real-money signal).
 struct ModeBadge: View {
-    let isPractice: Bool
+    let isPractice: Bool?
     var body: some View {
-        Label(isPractice ? "Practice" : "Live",
-              systemImage: isPractice ? "testtube.2" : "indianrupeesign.circle.fill")
-            .font(.caption.bold())
-            .foregroundStyle(isPractice ? .orange : Theme.lossRed)
+        let (text, color, icon): (String, Color, String) = {
+            switch isPractice {
+            case .some(true):  return ("Practice", .orange, "testtube.2")
+            case .some(false): return ("Live", Theme.lossRed, "indianrupeesign.circle.fill")
+            case .none:        return ("Mode…", .secondary, "questionmark.circle")
+            }
+        }()
+        return Label(text, systemImage: icon)
+            .font(.caption.bold()).foregroundStyle(color)
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background((isPractice ? Color.orange : Theme.lossRed).opacity(0.15), in: Capsule())
-            .accessibilityLabel(isPractice ? "Practice mode" : "Live mode, real money")
+            .background(color.opacity(0.15), in: Capsule())
+            .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        switch isPractice {
+        case .some(true):  return "Practice mode"
+        case .some(false): return "Live mode, real money"
+        case .none:        return "Mode unknown, checking"
+        }
     }
 }
