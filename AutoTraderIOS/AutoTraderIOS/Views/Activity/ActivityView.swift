@@ -42,22 +42,30 @@ struct ActivityView: View {
 
     @ViewBuilder
     private var positions: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                if let mtm = vm.mtm {
-                    MTMCard(mtm: mtm)
-                } else if vm.scalpHasPositions {
-                    infoCard("A Volatility Spike bot has open positions.",
-                             "Open its bot to see details.", "bolt.fill")
-                } else {
-                    empty(icon: "tray",
-                          title: "No open positions",
-                          message: vm.marketOpen == false
-                            ? "The market is closed right now. Positions appear here while a bot is in a trade."
-                            : "When a bot enters a trade, its live profit or loss shows here.")
-                }
+        if vm.isLoading && vm.mtm == nil && !vm.scalpHasPositions {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Loading positions…").font(.subheadline).foregroundStyle(.secondary)
             }
-            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                VStack(spacing: 14) {
+                    if let mtm = vm.mtm {
+                        MTMCard(mtm: mtm)
+                    } else if vm.scalpHasPositions {
+                        infoCard("A Volatility Spike bot has open positions.",
+                                 "Open its bot to see details.", "bolt.fill")
+                    } else {
+                        empty(icon: "tray",
+                              title: "No open positions",
+                              message: vm.marketOpen == false
+                                ? "The market is closed right now. Positions appear here while a bot is in a trade."
+                                : "When a bot enters a trade, its live profit or loss shows here.")
+                    }
+                }
+                .padding(16)
+            }
         }
     }
 
@@ -94,6 +102,8 @@ struct ActivityView: View {
                                 .foregroundStyle(.blue)
                         }
                         .frame(height: 160)
+                        .accessibilityLabel("Server activity over the last \(buckets.count) time buckets")
+                        .accessibilityValue("\(vm.metrics?.totalLines ?? buckets.reduce(0) { $0 + ($1.lines ?? 0) }) log lines total")
                         if let total = vm.metrics?.totalLines {
                             Text("\(total) log lines total")
                                 .font(.caption).foregroundStyle(.secondary)

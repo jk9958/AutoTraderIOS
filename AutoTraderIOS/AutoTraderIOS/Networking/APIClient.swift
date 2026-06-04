@@ -10,15 +10,17 @@ struct APIClient {
     private static let pollTimeout: TimeInterval = 60
     private static let actionTimeout: TimeInterval = 60
 
-    private static func makeSession() -> URLSession {
-        // Ephemeral: no on-disk caching of responses (which can carry config/token
-        // material) and, crucially, NO custom trust delegate — the system performs
-        // full TLS certificate validation against the public cert. Never bypass this.
+    /// One shared session for connection reuse. Ephemeral: no on-disk caching of
+    /// responses (which can carry config/token material) and, crucially, NO custom
+    /// trust delegate — the system performs full TLS certificate validation against
+    /// the public cert. Never bypass this. Per-request timeouts come from each
+    /// `URLRequest`.
+    private static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = pollTimeout
         config.timeoutIntervalForResource = 60
         return URLSession(configuration: config)
-    }
+    }()
 
     private static let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -37,10 +39,12 @@ struct APIClient {
     // MARK: - Status
 
     func status() async throws -> ServerStatus {
-        Self.logger.debug("→ GET /status")
-        let (data, response) = try await fetch("/status", timeout: Self.pollTimeout)
-        try validate(response, data: data)
-        return try decode(ServerStatus.self, from: data)
+        try await withRetry {
+            Self.logger.debug("→ GET /status")
+            let (data, response) = try await fetch("/status", timeout: Self.pollTimeout)
+            try validate(response, data: data)
+            return try decode(ServerStatus.self, from: data)
+        }
     }
 
     // MARK: - Logs
@@ -69,10 +73,12 @@ struct APIClient {
     // MARK: - MTM
 
     func mtm() async throws -> MTMResponse {
-        Self.logger.debug("→ GET /mtm")
-        let (data, response) = try await fetch("/mtm", timeout: Self.pollTimeout)
-        try validate(response, data: data)
-        return try decode(MTMResponse.self, from: data)
+        try await withRetry {
+            Self.logger.debug("→ GET /mtm")
+            let (data, response) = try await fetch("/mtm", timeout: Self.pollTimeout)
+            try validate(response, data: data)
+            return try decode(MTMResponse.self, from: data)
+        }
     }
 
     // MARK: - Token
@@ -297,10 +303,12 @@ struct APIClient {
 
     /// GET /health/deep — component-level system check (never 500s server-side).
     func healthDeep() async throws -> HealthDeepResponse {
-        Self.logger.debug("→ GET /health/deep")
-        let (data, response) = try await fetch("/health/deep", timeout: Self.pollTimeout)
-        try validate(response, data: data)
-        return try decode(HealthDeepResponse.self, from: data)
+        try await withRetry {
+            Self.logger.debug("→ GET /health/deep")
+            let (data, response) = try await fetch("/health/deep", timeout: Self.pollTimeout)
+            try validate(response, data: data)
+            return try decode(HealthDeepResponse.self, from: data)
+        }
     }
 
     /// GET /metrics/app — free-form in-process counters/latency summary.
@@ -342,10 +350,12 @@ struct APIClient {
 
     /// GET /api/v1/engines — open (no key).
     func listEngines() async throws -> EnginesListResponse {
-        Self.logger.debug("→ GET /api/v1/engines")
-        let (data, response) = try await fetch("/api/v1/engines", timeout: Self.pollTimeout)
-        try validate(response, data: data)
-        return try decode(EnginesListResponse.self, from: data)
+        try await withRetry {
+            Self.logger.debug("→ GET /api/v1/engines")
+            let (data, response) = try await fetch("/api/v1/engines", timeout: Self.pollTimeout)
+            try validate(response, data: data)
+            return try decode(EnginesListResponse.self, from: data)
+        }
     }
 
     /// GET /api/v1/engines/{id}/status — open.
@@ -478,11 +488,35 @@ struct APIClient {
         component.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? component
     }
 
+    /// Retry an **idempotent** operation on transient failures (no network, timeout,
+    /// 5xx) with exponential backoff (0.5s → 1s → 2s). Never use for writes.
+    /// Cancellation breaks out immediately (the sleep throws).
+    private func withRetry<T>(maxAttempts: Int = 3, _ op: () async throws -> T) async throws -> T {
+        var attempt = 0
+        var delay: UInt64 = 500_000_000
+        while true {
+            do {
+                return try await op()
+            } catch let error as APIError where Self.isTransient(error) {
+                attempt += 1
+                if attempt >= maxAttempts { throw error }
+                try await Task.sleep(nanoseconds: delay)
+                delay *= 2
+            }
+        }
+    }
+
+    private static func isTransient(_ error: APIError) -> Bool {
+        switch error {
+        case .noNetwork, .timeout: return true
+        case .httpError(let code, _): return code >= 500
+        default: return false
+        }
+    }
+
     private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        let session = Self.makeSession()
-        defer { session.finishTasksAndInvalidate() }
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await Self.session.data(for: request)
             if let http = response as? HTTPURLResponse {
                 // Status + size only. Never log bodies — responses can carry config
                 // and token material.
