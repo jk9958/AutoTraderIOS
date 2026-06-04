@@ -22,11 +22,15 @@ struct ActivityView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
 
-                Group {
-                    switch segment {
-                    case .positions:   positions
-                    case .trades:      tradeHistory
-                    case .performance: performance
+                if let err = vm.error, vm.mtm == nil, vm.trades.isEmpty, !vm.isLoading {
+                    FriendlyErrorView(error: err, onRetry: { Task { await vm.load(client: appState.client) } })
+                } else {
+                    Group {
+                        switch segment {
+                        case .positions:   positions
+                        case .trades:      tradeHistory
+                        case .performance: performance
+                        }
                     }
                 }
             }
@@ -51,7 +55,7 @@ struct ActivityView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if let mtm = vm.mtm {
-                        sectionLabel("Main trading engine")
+                        sectionLabel("Main account")
                         MTMCard(mtm: mtm)
                     } else if vm.scalpHasPositions {
                         infoCard("A Volatility Spike bot has open positions.",

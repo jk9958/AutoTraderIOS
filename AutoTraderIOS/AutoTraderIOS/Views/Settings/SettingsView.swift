@@ -87,7 +87,7 @@ struct SettingsView: View {
                     vm.rotateMessage = nil
                     showRotate = true
                 } label: {
-                    Label("Rotate Key on Server", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Change access code on server", systemImage: "arrow.triangle.2.circlepath")
                 }
             }
         } header: {
@@ -102,11 +102,11 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("New API key (≥ 12 chars)", text: $newKeyInput)
+                    SecureField("New access code (≥ 12 characters)", text: $newKeyInput)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text("Authenticates with the current key, then sets the new one. The new key takes effect immediately and is saved on this device.")
+                    Text("Checks your current code, then sets the new one. It takes effect immediately and is saved on this device.")
                 }
                 if let msg = vm.rotateMessage {
                     Section {
@@ -116,7 +116,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationTitle("Rotate API Key")
+            .navigationTitle("Change access code")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRotate = false } }
