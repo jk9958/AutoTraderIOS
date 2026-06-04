@@ -508,7 +508,7 @@ struct APIClient {
 
     private static func isTransient(_ error: APIError) -> Bool {
         switch error {
-        case .noNetwork, .timeout: return true
+        case .noNetwork, .timeout, .serverUnreachable: return true
         case .httpError(let code, _): return code >= 500
         default: return false
         }
@@ -528,7 +528,12 @@ struct APIClient {
             switch err.code {
             case .notConnectedToInternet, .networkConnectionLost:
                 throw APIError.noNetwork
-            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            case .cannotConnectToHost, .resourceUnavailable:
+                // Host is reachable but refused/dropped the connection — usually a
+                // backend restart. Transient, so this gets retried.
+                throw APIError.serverUnreachable
+            case .cannotFindHost, .dnsLookupFailed:
+                // Name doesn't resolve — a genuine wrong-address problem.
                 throw APIError.wrongBaseURL(url: request.url?.absoluteString ?? baseURL)
             case .timedOut:
                 throw APIError.timeout(url: request.url?.absoluteString ?? baseURL)

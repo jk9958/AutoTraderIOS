@@ -266,7 +266,7 @@ private struct LearningSummaryCard: View {
         let params = learning.adaptiveParams
         HStack(spacing: 0) {
             statTile("Win Rate",
-                     value: summary?.winRate.map { "\(Int($0 * 100))%" } ?? "—",
+                     value: Format.percent(summary?.winRate),
                      color: .green)
             Divider().frame(height: 40)
             statTile("Closed",
@@ -274,7 +274,7 @@ private struct LearningSummaryCard: View {
                      color: .primary)
             Divider().frame(height: 40)
             statTile("Total P&L",
-                     value: summary?.totalPnl.map { "₹\(Int($0))" } ?? "—",
+                     value: Format.inr(summary?.totalPnl),
                      color: (summary?.totalPnl ?? 0) >= 0 ? .green : .red)
             Divider().frame(height: 40)
             statTile("Cycle",

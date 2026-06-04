@@ -73,8 +73,8 @@ private struct LearningCycleRow: View {
             }
             HStack(spacing: 14) {
                 metric("Trades", cycle.nTrades.map(String.init) ?? "—")
-                metric("Win Rate", cycle.winRate.map { "\(Int($0 * 100))%" } ?? "—")
-                metric("Avg P&L", cycle.avgPnl.map { String(format: "₹%.0f", $0) } ?? "—")
+                metric("Win Rate", Format.percent(cycle.winRate))
+                metric("Avg P&L", cycle.avgPnl.flatMap { $0.isFinite ? String(format: "₹%.0f", $0) : nil } ?? "—")
             }
         }
         .padding(.vertical, 4)

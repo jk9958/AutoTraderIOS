@@ -62,7 +62,7 @@ struct TrendAdaptiveProgressView: View {
         let p = learning.adaptiveParams
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             StatTile(title: "Win Rate",
-                     value: s?.winRate.map { "\(Int($0 * 100))%" } ?? "—",
+                     value: Format.percent(s?.winRate),
                      icon: "target", color: .green)
             StatTile(title: "Total P&L",
                      value: s?.totalPnl.map { signedRupee($0) } ?? "—",

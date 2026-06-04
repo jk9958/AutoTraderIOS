@@ -4,6 +4,10 @@ enum APIError: LocalizedError {
     case noNetwork
     case timeout(url: String)
     case wrongBaseURL(url: String)
+    /// Host resolves but refuses/drops the connection — typically a backend
+    /// restart. Transient and retryable (unlike `wrongBaseURL`, which is a real
+    /// address/DNS problem).
+    case serverUnreachable
     case httpError(statusCode: Int, detail: String)
     case validationError(messages: [String])
     case engineAlreadyRunning
@@ -20,6 +24,8 @@ enum APIError: LocalizedError {
             return "Server timed out. It may be starting up — try again."
         case .wrongBaseURL(let url):
             return "No server at \(url). Check the address in Settings."
+        case .serverUnreachable:
+            return "The server isn't responding — it may be restarting. Trying again…"
         case .httpError(let code, let detail):
             if code >= 500 { return "The server hit an error. Check the server logs." }
             return detail.isEmpty ? "Request failed (HTTP \(code))." : detail
@@ -40,7 +46,7 @@ enum APIError: LocalizedError {
 
     var isConnectionError: Bool {
         switch self {
-        case .noNetwork, .timeout, .wrongBaseURL: return true
+        case .noNetwork, .timeout, .wrongBaseURL, .serverUnreachable: return true
         default: return false
         }
     }

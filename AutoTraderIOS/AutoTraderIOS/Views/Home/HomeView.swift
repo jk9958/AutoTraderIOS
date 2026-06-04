@@ -163,10 +163,9 @@ struct HomeView: View {
         // so it isn't read as the featured bot's P&L.
         let pnl = vm.liveMTM?.mtmInr
         return statCard(title: "Open P&L", systemImage: "indianrupeesign.circle") {
-            if let pnl {
+            if let pnl, pnl.isFinite {
                 VStack(alignment: .leading, spacing: 2) {
-                    let sign = pnl >= 0 ? "+" : "-"
-                    Text("\(sign)₹\(Int(abs(pnl)))")
+                    Text(Format.inr(pnl))
                         .font(.title2.bold().monospacedDigit())
                         .foregroundStyle(pnl >= 0 ? Theme.profitGreen : Theme.lossRed)
                     Text("Main account")

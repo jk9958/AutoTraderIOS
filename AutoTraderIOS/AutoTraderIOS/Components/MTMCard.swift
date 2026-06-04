@@ -116,13 +116,13 @@ struct MTMCard: View {
             if let sce = mtm.shortCe, let lce = mtm.longCe {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("CE").font(.caption2).foregroundStyle(.secondary)
-                    Text("\(Int(sce)) / \(Int(lce))").font(.caption.monospacedDigit()).foregroundStyle(.red)
+                    Text("\(Format.intString(sce)) / \(Format.intString(lce))").font(.caption.monospacedDigit()).foregroundStyle(.red)
                 }
             }
             if let spe = mtm.shortPe, let lpe = mtm.longPe {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("PE").font(.caption2).foregroundStyle(.secondary)
-                    Text("\(Int(spe)) / \(Int(lpe))").font(.caption.monospacedDigit()).foregroundStyle(.green)
+                    Text("\(Format.intString(spe)) / \(Format.intString(lpe))").font(.caption.monospacedDigit()).foregroundStyle(.green)
                 }
             }
             Spacer()

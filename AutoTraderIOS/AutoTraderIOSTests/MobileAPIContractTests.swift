@@ -177,6 +177,35 @@ struct MobileAPIContractTests {
         #expect(HealthLevel(raw: "FAILED").appStatus == .error)
     }
 
+    // MARK: Crash-safety + recovery (QA fixes)
+
+    @Test func formatNeverCrashesOnBadNumbers() {
+        // The whole point: these must not trap.
+        #expect(Format.inr(.infinity) == "—")
+        #expect(Format.inr(.nan) == "—")
+        #expect(Format.inr(-.infinity) == "—")
+        #expect(Format.inr(1e30).hasPrefix("+₹"))      // huge but finite — no Int() trap
+        #expect(Format.inr(nil) == "—")
+        #expect(Format.intString(.infinity) == "—")
+        #expect(Format.intString(1e30) != "—")
+        #expect(Format.percent(.nan) == "—")
+    }
+
+    @Test func formatNormalValues() {
+        #expect(Format.inr(1240) == "+₹1,240")
+        #expect(Format.inr(-50) == "-₹50")
+        #expect(Format.percent(0.6333) == "63%")
+        #expect(Format.intString(19500) == "19500")
+    }
+
+    @Test func serverUnreachableIsTransientAndRetryable() {
+        #expect(APIError.serverUnreachable.isConnectionError)
+        let fe = FriendlyError.from(APIError.serverUnreachable)
+        #expect(fe.isRetryable)
+        #expect(!fe.pointsToSettings)
+        #expect(fe.title == "Server is restarting")
+    }
+
     @Test func decodesHealthDeep() throws {
         let json = """
         {"status":"DEGRADED","components":{

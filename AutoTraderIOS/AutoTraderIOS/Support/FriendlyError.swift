@@ -40,6 +40,11 @@ struct FriendlyError: Identifiable, Equatable {
                          message: "We couldn't find a server at that address.",
                          fix: "Check the server address in Settings.",
                          systemImage: "link.badge.plus", isRetryable: false, pointsToSettings: true)
+        case .serverUnreachable:
+            return .init(title: "Server is restarting",
+                         message: "The server isn't responding right now.",
+                         fix: "This usually clears up in a moment — try again.",
+                         systemImage: "arrow.triangle.2.circlepath", isRetryable: true, pointsToSettings: false)
         case .unauthorized:
             return .init(title: "Admin code needed",
                          message: "The server didn't accept your admin access code.",

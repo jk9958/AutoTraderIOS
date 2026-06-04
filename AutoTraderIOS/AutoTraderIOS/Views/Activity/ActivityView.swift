@@ -180,10 +180,10 @@ struct TradeStats {
         total = t; wins = w; losses = l; totalInr = sum
     }
 
-    var totalInrText: String { "\(totalInr >= 0 ? "+" : "-")₹\(Int(abs(totalInr)))" }
+    var totalInrText: String { Format.inr(totalInr) }
     var winRateText: String? {
         guard total > 0 else { return nil }
-        return "\(Int((Double(wins) / Double(total)) * 100))%"
+        return Format.percent(Double(wins) / Double(total))
     }
 }
 
@@ -202,11 +202,11 @@ struct ActivityTradeRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                if let inr = pnlInr {
-                    Text("\(inr >= 0 ? "+" : "-")₹\(Int(abs(inr)))")
+                if let inr = pnlInr, inr.isFinite {
+                    Text(Format.inr(inr))
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(isProfit ? Theme.profitGreen : Theme.lossRed)
-                } else if let pts = pnlPts {
+                } else if let pts = pnlPts, pts.isFinite {
                     Text("\(pts >= 0 ? "+" : "")\(String(format: "%.2f", pts)) pts")
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(isProfit ? Theme.profitGreen : Theme.lossRed)
