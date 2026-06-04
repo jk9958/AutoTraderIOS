@@ -5,6 +5,9 @@ struct SettingsView: View {
     @StateObject private var vm = SettingsVM()
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showRotate = false
+    @State private var newKeyInput = ""
+
     var body: some View {
         NavigationStack {
             Form {
@@ -18,6 +21,8 @@ struct SettingsView: View {
                 } footer: {
                     Text("Base URL for the trading API server.")
                 }
+
+                apiKeySection
 
                 Section {
                     Button {
@@ -54,6 +59,73 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    // MARK: - API Key (mobile write key)
+
+    @ViewBuilder
+    private var apiKeySection: some View {
+        Section {
+            SecureField("X-API-Key", text: $appState.apiKey)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if appState.hasAPIKey {
+                Button {
+                    newKeyInput = ""
+                    vm.rotateMessage = nil
+                    showRotate = true
+                } label: {
+                    Label("Rotate Key on Server", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+        } header: {
+            Text("API Key")
+        } footer: {
+            Text("Required for engine create/start/stop/delete (mobile API v1). Stored in the device Keychain, sent as the X-API-Key header.")
+        }
+        .sheet(isPresented: $showRotate) { rotateSheet }
+    }
+
+    private var rotateSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("New API key (≥ 12 chars)", text: $newKeyInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } footer: {
+                    Text("Authenticates with the current key, then sets the new one. The new key takes effect immediately and is saved on this device.")
+                }
+                if let msg = vm.rotateMessage {
+                    Section {
+                        Label(msg, systemImage: vm.rotateFailed ? "xmark.circle" : "checkmark.circle")
+                            .foregroundStyle(vm.rotateFailed ? .red : .green)
+                            .font(.callout)
+                    }
+                }
+            }
+            .navigationTitle("Rotate API Key")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRotate = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Rotate") {
+                        Task {
+                            if let newKey = await vm.rotateKey(newKey: newKeyInput, client: appState.client) {
+                                appState.apiKey = newKey   // persists to Keychain + rebuilds client
+                                try? await Task.sleep(for: .seconds(1))
+                                showRotate = false
+                            }
+                        }
+                    }
+                    .disabled(vm.isRotating || !EngineValidation.isValidApiKey(newKeyInput))
+                }
+            }
+            .overlay {
+                if vm.isRotating { ProgressView().padding(20).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12)) }
+            }
+            .presentationDetents([.medium])
         }
     }
 

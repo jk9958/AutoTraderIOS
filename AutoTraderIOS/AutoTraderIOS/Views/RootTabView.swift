@@ -7,6 +7,8 @@ struct RootTabView: View {
         TabView {
             DashboardView()
                 .tabItem { Label("Status", systemImage: "gauge.with.needle") }
+            EnginesListView()
+                .tabItem { Label("Engines", systemImage: "server.rack") }
             TradeView()
                 .tabItem { Label("Trade", systemImage: "bolt.fill") }
             TrendAgentView()

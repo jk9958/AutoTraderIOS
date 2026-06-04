@@ -7,6 +7,8 @@ enum APIError: LocalizedError {
     case httpError(statusCode: Int, detail: String)
     case validationError(messages: [String])
     case engineAlreadyRunning
+    case unauthorized
+    case serverKeyNotConfigured(detail: String)
     case decodingError
     case unknown(String)
 
@@ -25,6 +27,10 @@ enum APIError: LocalizedError {
             return msgs.joined(separator: "\n")
         case .engineAlreadyRunning:
             return "An engine is already running. Stop it first."
+        case .unauthorized:
+            return "API key rejected. Set or update the write key in Settings → API Key."
+        case .serverKeyNotConfigured(let detail):
+            return detail.isEmpty ? "The server has no API key configured." : detail
         case .decodingError:
             return "Received unexpected data from the server."
         case .unknown(let msg):

@@ -3,6 +3,8 @@ import os.log
 
 struct APIClient {
     let baseURL: String
+    /// Mobile API v1 write key, sent as `X-API-Key`. Nil/empty on read-only use.
+    var apiKey: String?
     private static let logger = Logger(subsystem: "com.autotrader.ios", category: "API")
 
     private static let pollTimeout: TimeInterval = 60
@@ -288,6 +290,97 @@ struct APIClient {
         return url
     }
 
+    // MARK: - Mobile API v1 — multi-engine management
+
+    /// GET /api/v1/engines — open (no key).
+    func listEngines() async throws -> EnginesListResponse {
+        Self.logger.debug("→ GET /api/v1/engines")
+        let (data, response) = try await fetch("/api/v1/engines", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(EnginesListResponse.self, from: data)
+    }
+
+    /// GET /api/v1/engines/{id}/status — open.
+    func engineStatus(_ engineId: String) async throws -> EngineStatusResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/status"
+        Self.logger.debug("→ GET \(path)")
+        let (data, response) = try await fetch(path, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(EngineStatusResponse.self, from: data)
+    }
+
+    /// GET /api/v1/engines/{id}/config — open.
+    func engineConfig(_ engineId: String) async throws -> EngineConfigResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/config"
+        Self.logger.debug("→ GET \(path)")
+        let (data, response) = try await fetch(path, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(EngineConfigResponse.self, from: data)
+    }
+
+    /// POST /api/v1/engines — requires X-API-Key.
+    func createEngine(_ body: CreateEngineRequest) async throws -> EngineActionResponse {
+        Self.logger.debug("→ POST /api/v1/engines (\(body.engineId))")
+        var req = try urlRequest("/api/v1/engines", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineActionResponse.self, from: data)
+    }
+
+    /// PATCH /api/v1/engines/{id}/config — requires X-API-Key.
+    func patchEngineConfig(_ engineId: String, body: PatchEngineConfigRequest) async throws -> EngineConfigResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/config"
+        Self.logger.debug("→ PATCH \(path)")
+        var req = try urlRequest(path, method: "PATCH", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineConfigResponse.self, from: data)
+    }
+
+    /// POST /api/v1/engines/{id}/{start|stop|restart} — requires X-API-Key.
+    func engineLifecycle(_ engineId: String, action: EngineLifecycleAction) async throws -> EngineActionResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/\(action.rawValue)"
+        Self.logger.debug("→ POST \(path)")
+        var req = try urlRequest(path, method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineActionResponse.self, from: data)
+    }
+
+    /// DELETE /api/v1/engines/{id} — requires X-API-Key. Secrets preserved server-side.
+    func deleteEngine(_ engineId: String) async throws -> EngineActionResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))"
+        Self.logger.debug("→ DELETE \(path)")
+        let req = try urlRequest(path, method: "DELETE", timeout: Self.actionTimeout)
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineActionResponse.self, from: data)
+    }
+
+    /// PUT /api/v1/engines/{id}/token — requires X-API-Key.
+    func updateEngineToken(_ engineId: String, accessToken: String) async throws -> EngineActionResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/token"
+        Self.logger.debug("→ PUT \(path)")
+        var req = try urlRequest(path, method: "PUT", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(EngineTokenRequest(accessToken: accessToken))
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineActionResponse.self, from: data)
+    }
+
+    /// PUT /api/v1/config/api-key — rotate. Authenticate with the CURRENT key.
+    func rotateApiKey(newKey: String) async throws -> RotateKeyResponse {
+        Self.logger.debug("→ PUT /api/v1/config/api-key")
+        var req = try urlRequest("/api/v1/config/api-key", method: "PUT", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(RotateKeyRequest(apiKey: newKey))
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(RotateKeyResponse.self, from: data)
+    }
+
     // MARK: - Private
 
     private func fetch(_ path: String, timeout: TimeInterval) async throws -> (Data, URLResponse) {
@@ -300,6 +393,7 @@ struct APIClient {
     private func performURL(_ url: URL, timeout: TimeInterval) async throws -> (Data, URLResponse) {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        applyAPIKey(&req)
         return try await perform(req)
     }
 
@@ -310,7 +404,30 @@ struct APIClient {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAPIKey(&req)
         return req
+    }
+
+    /// Attach the mobile-API write key when present. Harmless on read endpoints.
+    private func applyAPIKey(_ req: inout URLRequest) {
+        if let key = apiKey, !key.isEmpty {
+            req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        }
+    }
+
+    /// Build a GET URL with query items against the base URL.
+    private func makeURL(_ path: String, query: [URLQueryItem] = []) throws -> URL {
+        guard var comps = URLComponents(string: baseURL + path) else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        if !query.isEmpty { comps.queryItems = query }
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        return url
+    }
+
+    /// Percent-encode an engine_id for safe path interpolation.
+    private static func escape(_ component: String) -> String {
+        component.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? component
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -348,7 +465,21 @@ struct APIClient {
         guard let http = response as? HTTPURLResponse else { return }
         guard !(200...299).contains(http.statusCode) else { return }
 
+        // Decode the FastAPI `{detail: "..."}` string once for the cases that use it.
+        func detailString() -> String {
+            guard let data else { return "" }
+            struct StringDetail: Decodable { let detail: String }
+            return (try? Self.decoder.decode(StringDetail.self, from: data))?.detail ?? ""
+        }
+
         switch http.statusCode {
+        case 401:
+            Self.logger.error("✗ Unauthorized (X-API-Key)")
+            throw APIError.unauthorized
+        case 503:
+            let detail = detailString()
+            Self.logger.error("✗ 503: \(detail)")
+            throw APIError.serverKeyNotConfigured(detail: detail)
         case 409:
             Self.logger.error("✗ Engine already running")
             throw APIError.engineAlreadyRunning
@@ -363,11 +494,7 @@ struct APIClient {
             Self.logger.error("✗ Validation failed")
             throw APIError.validationError(messages: ["Validation failed — check form fields."])
         default:
-            var detail = ""
-            if let data {
-                struct StringDetail: Decodable { let detail: String }
-                detail = (try? Self.decoder.decode(StringDetail.self, from: data))?.detail ?? ""
-            }
+            let detail = detailString()
             Self.logger.error("✗ HTTP \(http.statusCode): \(detail)")
             throw APIError.httpError(statusCode: http.statusCode, detail: detail)
         }

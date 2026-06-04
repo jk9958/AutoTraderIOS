@@ -38,10 +38,22 @@ Modernized to native iOS + glass materials (HIG-aligned). Use `glassCard()` / `t
 ## Tabs
 
 1. **Status** (`DashboardView`) — engine status card (pulsing dot, mode badge, uptime, stop), broker-auth card (token chips + login rows).
-2. **Trade** (`TradeView`) — strategy cards → Iron Condor (full form + margin estimate), VIX Scalp (configurable params), Options.
-3. **Trend** (`TrendAgentView`) — Trend Agent: status/start/stop, launch config, open positions, **Adaptive Progress** (Swift Charts: win-rate trend, cumulative & per-cycle P&L → `TrendAdaptiveProgressView`), evolved params (`TrendLearningView`), trades/logs.
-4. **Logs** (`LogsView`) — engine + API logs.
-5. **Positions** (`TradesView`) — `MTMCard` live P&L + trade-history cards.
+2. **Engines** (`EnginesListView`) — multi-engine management via the **mobile API v1** (see below). List (heartbeat status, swipe start/stop/delete, context menu), `CreateEngineView` (broker × strategy form), `EngineDetailView` (status, start/stop/restart, config inspector + dry-run PATCH, broker-token PUT). Writes require the X-API-Key.
+3. **Trade** (`TradeView`) — strategy cards → Iron Condor (full form + margin estimate), VIX Scalp (configurable params), Options.
+4. **Trend** (`TrendAgentView`) — Trend Agent: status/start/stop, launch config, open positions, **Adaptive Progress** (Swift Charts: win-rate trend, cumulative & per-cycle P&L → `TrendAdaptiveProgressView`), evolved params (`TrendLearningView`), trades/logs.
+5. **Logs** (`LogsView`) — engine + API logs.
+6. **Positions** (`TradesView`) — `MTMCard` live P&L + trade-history cards.
+
+> 6 tabs: on compact iPhone the last items collapse into the system "More" tab. Reorder in `RootTabView` if different prominence is wanted.
+
+## Mobile API v1 — multi-engine management (X-API-Key)
+
+Server `mobile`-tagged endpoints (`/api/v1/...`) are a separate multi-engine control plane that creates/operates arbitrary `broker × strategy` engines via `systemctl` — **distinct from the legacy single-engine `/start/* · /stop · /status` control.** Write endpoints require the `X-API-Key` header; GET reads are open.
+
+- Key lives in the **Keychain** (`KeychainStore`, account `mobile-api-key`) → `AppState.apiKey` → `APIClient.apiKey` → sent as `X-API-Key`. Never UserDefaults.
+- `APIClient`: `listEngines`, `engineStatus`, `engineConfig`, `createEngine`, `patchEngineConfig`, `engineLifecycle(_:action:)`, `deleteEngine`, `updateEngineToken`, `rotateApiKey`. Models in `Models/EngineModels.swift`; free-form config/params via `Support/JSONValue.swift`.
+- Endpoints: `GET /api/v1/engines` · `POST /api/v1/engines` · `GET /api/v1/engines/{id}/status` · `GET|PATCH /api/v1/engines/{id}/config` · `POST /api/v1/engines/{id}/{start,stop,restart}` · `DELETE /api/v1/engines/{id}` · `PUT /api/v1/engines/{id}/token` · `PUT /api/v1/config/api-key`.
+- Errors: `401` → `.unauthorized`; `503` (`API_KEY not set on server`) → `.serverKeyNotConfigured`. `engine_id` regex `^[A-Za-z0-9_-]+$`, rotation key ≥ 12 chars (mirrored in `EngineValidation`). Contract tests: `MobileAPIContractTests.swift`.
 
 ## API endpoints in use
 
