@@ -13,6 +13,7 @@ struct EngineDetailView: View {
     @State private var fyersAuthURL: URL?
     @State private var reconnecting = false
     @State private var reconnectInfo: String?
+    @State private var confirmStart = false
 
     init(engineId: String) {
         _vm = StateObject(wrappedValue: EngineDetailVM(engineId: engineId))
@@ -77,7 +78,7 @@ struct EngineDetailView: View {
     @ViewBuilder
     private var controlsSection: some View {
         Section {
-            lifecycleButton(.start, "Start", "play.fill", Theme.profitGreen)
+            startButton
             lifecycleButton(.restart, "Restart", "arrow.clockwise", .blue)
             lifecycleButton(.stop, "Stop", "stop.fill", .orange)
         } header: {
@@ -85,6 +86,33 @@ struct EngineDetailView: View {
         } footer: {
             if !canWrite { Text("Add your admin access code in Settings to control this bot.") }
         }
+        .confirmationDialog("Broker not connected", isPresented: $confirmStart, titleVisibility: .visible) {
+            Button("Start anyway", role: .destructive) { Task { await doStart() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This bot is in Live mode but \(botBroker.displayName) isn't connected, so live trades may fail. Connect the broker first (Reconnect below), or start anyway.")
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            if isLiveMode && !brokerConnected { confirmStart = true }
+            else { Task { await doStart() } }
+        } label: {
+            HStack {
+                Label("Start", systemImage: "play.fill")
+                Spacer()
+                if vm.busyAction == .start { ProgressView() }
+            }
+        }
+        .tint(Theme.profitGreen)
+        .disabled(!canWrite || vm.busyAction != nil)
+    }
+
+    private func doStart() async {
+        await vm.lifecycle(.start, client: appState.client)
+        appState.enginesStore.invalidate(vm.engineId)
+        Analytics.shared.track(.botStarted(live: isLiveMode))
     }
 
     private func lifecycleButton(_ action: EngineLifecycleAction, _ title: String, _ icon: String, _ tint: Color) -> some View {
@@ -92,7 +120,6 @@ struct EngineDetailView: View {
             Task {
                 await vm.lifecycle(action, client: appState.client)
                 appState.enginesStore.invalidate(vm.engineId)   // keep Home/Bots in sync
-                if action == .start { Analytics.shared.track(.botStarted(live: false)) }
             }
         } label: {
             HStack {
@@ -103,6 +130,19 @@ struct EngineDetailView: View {
         }
         .tint(tint)
         .disabled(!canWrite || vm.busyAction != nil)
+    }
+
+    /// Live = the bot's `dry_run` is false. Unknown defaults to Practice (no warning).
+    private var isLiveMode: Bool {
+        if case .loaded(let cfg) = vm.config, let dry = dryRunValue(in: cfg) { return !dry }
+        if let dry = appState.enginesStore.mode(for: vm.engineId) { return !dry }
+        return false
+    }
+
+    /// Whether the bot's broker currently has a live login on the server.
+    private var brokerConnected: Bool {
+        let v = appState.serverStatus?.tokens?[botBroker.rawValue] ?? ""
+        return v.contains("active") || v.contains("loaded") || v.contains("updated")
     }
 
     // MARK: Settings (Practice toggle + token + advanced)

@@ -9,6 +9,8 @@ enum AnyCodable: Codable {
     case bool(Bool)
     case int(Int)
     case double(Double)
+    case array([AnyCodable])
+    case object([String: AnyCodable])
     case null
 
     init(from decoder: Decoder) throws {
@@ -23,8 +25,13 @@ enum AnyCodable: Codable {
             self = .double(double)
         } else if let string = try? container.decode(String.self) {
             self = .string(string)
+        } else if let array = try? container.decode([AnyCodable].self) {
+            self = .array(array)
+        } else if let object = try? container.decode([String: AnyCodable].self) {
+            self = .object(object)
         } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode AnyCodable")
+            // Never throw — a single odd value must not fail the whole trades list.
+            self = .null
         }
     }
 
@@ -35,6 +42,8 @@ enum AnyCodable: Codable {
         case .bool(let b): try container.encode(b)
         case .int(let i): try container.encode(i)
         case .double(let d): try container.encode(d)
+        case .array(let a): try container.encode(a)
+        case .object(let o): try container.encode(o)
         case .null: try container.encodeNil()
         }
     }
@@ -45,6 +54,8 @@ enum AnyCodable: Codable {
         case .bool(let b): return String(b)
         case .int(let i): return String(i)
         case .double(let d): return String(d)
+        case .array(let a): return a.map(\.stringValue).joined(separator: ", ")
+        case .object(let o): return o.map { "\($0.key): \($0.value.stringValue)" }.joined(separator: ", ")
         case .null: return ""
         }
     }

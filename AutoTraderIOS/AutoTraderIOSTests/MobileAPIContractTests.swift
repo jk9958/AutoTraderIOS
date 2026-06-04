@@ -177,6 +177,38 @@ struct MobileAPIContractTests {
         #expect(HealthLevel(raw: "FAILED").appStatus == .error)
     }
 
+    // MARK: Lenient decoding (resilience)
+
+    @Test func engineListSkipsMalformedRowsAndDefaultsOk() throws {
+        // One good row, one missing engine_id, one with pid as a string.
+        let json = """
+        {"engines": [
+          {"engine_id": "good", "status": "RUNNING", "pid": 7},
+          {"status": "RUNNING"},
+          {"engine_id": "stringpid", "status": "STOPPED", "pid": "4242"}
+        ]}
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(EnginesListResponse.self, from: json)
+        #expect(resp.ok)                              // defaulted true when absent
+        #expect(resp.engines.count == 2)             // row missing engine_id dropped
+        #expect(resp.engines.map(\.engineId) == ["good", "stringpid"])
+        #expect(resp.engines.last?.pid == 4242)      // string pid tolerated
+    }
+
+    @Test func tradesToleratesNestedValues() throws {
+        let json = """
+        {"trades": [
+          {"pnl_rupees": "120.5", "legs": {"ce": 19500, "pe": 19000}, "tags": ["a","b"]}
+        ]}
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(TradesResponse.self, from: json)
+        #expect(resp.trades.count == 1)
+        #expect(resp.trades[0]["pnl_rupees"]?.stringValue == "120.5")
+        // nested object/array decode without failing the row
+        #expect(resp.trades[0]["legs"] != nil)
+        #expect(resp.trades[0]["tags"] != nil)
+    }
+
     // MARK: Crash-safety + recovery (QA fixes)
 
     @Test func formatNeverCrashesOnBadNumbers() {

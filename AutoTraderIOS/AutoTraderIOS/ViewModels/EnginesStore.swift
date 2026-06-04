@@ -60,12 +60,21 @@ final class EnginesStore: ObservableObject {
         }
     }
 
+    /// Caps how many bot configs we fetch per refresh so a large fleet doesn't
+    /// stall the poll loop. Unknown modes resolve over subsequent cycles.
+    private let maxModeFetchesPerRefresh = 10
+
     /// Fetch real `dry_run` for running bots whose mode we don't yet know. Mode only
-    /// changes after a restart (which invalidates it), so this won't storm the server.
+    /// changes after a restart (which invalidates it), so this won't storm the server,
+    /// and it's bounded per cycle.
     private func refreshModes(for engines: [EngineInfo]) async {
         let ids = Set(engines.map(\.engineId))
         modes = modes.filter { ids.contains($0.key) }   // prune deleted bots
-        for e in engines where e.runState == .running && modes[e.engineId] == nil {
+        let need = engines
+            .filter { $0.runState == .running && modes[$0.engineId] == nil }
+            .prefix(maxModeFetchesPerRefresh)
+        for e in need {
+            if Task.isCancelled { return }
             if let cfg = try? await service().engineConfig(e.engineId).config,
                let dry = cfg.dryRunFlag {
                 modes[e.engineId] = dry

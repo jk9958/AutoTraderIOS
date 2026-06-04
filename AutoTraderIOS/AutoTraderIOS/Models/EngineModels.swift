@@ -97,7 +97,16 @@ enum EngineRunState: String {
 
 // MARK: - Decodable responses
 
+/// Wraps a Decodable so a single malformed element in an array doesn't fail the
+/// whole array — the element decodes to nil and is skipped.
+struct FailableDecodable<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+}
+
 /// One engine's heartbeat snapshot (`/api/v1/engines`, `/status`).
+/// Tolerant decoding: only `engine_id` is required (a row missing it is dropped
+/// by the lossy list). Numeric/type quirks on other fields never drop the row.
 struct EngineInfo: Decodable, Identifiable, Equatable {
     let engineId: String
     let broker: String?
@@ -109,12 +118,57 @@ struct EngineInfo: Decodable, Identifiable, Equatable {
 
     var id: String { engineId }
     var runState: EngineRunState { EngineRunState(raw: status) }
+
+    // camelCase keys match the post-`convertFromSnakeCase` JSON keys (see CLAUDE.md).
+    enum CodingKeys: String, CodingKey {
+        case engineId, broker, strategy, status, pid, lastBeat, stale
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        engineId = try c.decode(String.self, forKey: .engineId)   // required → drops bad row
+        broker   = try? c.decodeIfPresent(String.self, forKey: .broker)
+        strategy = try? c.decodeIfPresent(String.self, forKey: .strategy)
+        status   = try? c.decodeIfPresent(String.self, forKey: .status)
+        lastBeat = try? c.decodeIfPresent(String.self, forKey: .lastBeat)
+        stale    = try? c.decodeIfPresent(Bool.self, forKey: .stale)
+        // pid may arrive as a number or a numeric string.
+        if let n = try? c.decodeIfPresent(Int.self, forKey: .pid) {
+            pid = n
+        } else if let s = try? c.decodeIfPresent(String.self, forKey: .pid) {
+            pid = Int(s)
+        } else {
+            pid = nil
+        }
+    }
+
+    /// Memberwise init for tests / previews.
+    init(engineId: String, broker: String?, strategy: String?, status: String?,
+         pid: Int?, lastBeat: String?, stale: Bool?) {
+        self.engineId = engineId; self.broker = broker; self.strategy = strategy
+        self.status = status; self.pid = pid; self.lastBeat = lastBeat; self.stale = stale
+    }
 }
 
 struct EnginesListResponse: Decodable {
     let ok: Bool
     let engines: [EngineInfo]
     let error: String?
+
+    enum CodingKeys: String, CodingKey { case ok, engines, error }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = (try? c.decode(Bool.self, forKey: .ok)) ?? true
+        error = try? c.decodeIfPresent(String.self, forKey: .error)
+        let raw = (try? c.decode([FailableDecodable<EngineInfo>].self, forKey: .engines)) ?? []
+        engines = raw.compactMap(\.value)   // skip malformed rows
+    }
+
+    /// Memberwise init for tests.
+    init(ok: Bool, engines: [EngineInfo], error: String?) {
+        self.ok = ok; self.engines = engines; self.error = error
+    }
 }
 
 struct EngineStatusResponse: Decodable {
