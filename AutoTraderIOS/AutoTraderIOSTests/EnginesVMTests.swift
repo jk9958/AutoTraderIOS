@@ -52,6 +52,14 @@ final class MockEngineService: EngineServicing, @unchecked Sendable {
         return EngineActionResponse(ok: true, engineId: engineId, status: nil, unit: nil, configPath: nil,
                                     secretsPath: nil, autostarted: nil, autostartError: nil, note: nil)
     }
+    private(set) var tokenSyncs: [String] = []
+    var syncError: Error?
+    func syncEngineToken(_ engineId: String) async throws -> EngineActionResponse {
+        tokenSyncs.append(engineId)
+        if let syncError { throw syncError }
+        return EngineActionResponse(ok: true, engineId: engineId, status: nil, unit: nil, configPath: nil,
+                                    secretsPath: nil, autostarted: nil, autostartError: nil, note: nil)
+    }
     func rotateApiKey(newKey: String) async throws -> RotateKeyResponse {
         RotateKeyResponse(ok: true, updatedAt: "10:00", note: nil)
     }

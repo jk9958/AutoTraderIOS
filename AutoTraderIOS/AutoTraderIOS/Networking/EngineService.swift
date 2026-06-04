@@ -12,6 +12,7 @@ protocol EngineServicing {
     func engineLifecycle(_ engineId: String, action: EngineLifecycleAction) async throws -> EngineActionResponse
     func deleteEngine(_ engineId: String) async throws -> EngineActionResponse
     func updateEngineToken(_ engineId: String, accessToken: String) async throws -> EngineActionResponse
+    func syncEngineToken(_ engineId: String) async throws -> EngineActionResponse
     func rotateApiKey(newKey: String) async throws -> RotateKeyResponse
 }
 

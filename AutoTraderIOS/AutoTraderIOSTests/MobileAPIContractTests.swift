@@ -230,6 +230,13 @@ struct MobileAPIContractTests {
         #expect(Format.intString(19500) == "19500")
     }
 
+    @Test func brokerNotConnected409MapsFriendly() {
+        let fe = FriendlyError.from(APIError.brokerNotConnected)
+        #expect(fe.isRetryable)
+        #expect(!fe.pointsToSettings)
+        #expect(fe.title == "Finish the broker login")
+    }
+
     @Test func serverUnreachableIsTransientAndRetryable() {
         #expect(APIError.serverUnreachable.isConnectionError)
         let fe = FriendlyError.from(APIError.serverUnreachable)

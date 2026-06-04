@@ -1,7 +1,12 @@
 # Spec: one-tap broker reconnect for any broker (`token/sync`)
 
-> **Status:** proposed. **Backend repo:** `Auto_Option` (`src/api_server.py`).
-> **Client repo:** AutoTraderIOS. Verified against backend as of 2026-06-05.
+> **Status:** ✅ implemented (backend live; iOS client wired 2026-06-05).
+> **Backend repo:** `Auto_Option` (`src/api_server.py`). **Client repo:** AutoTraderIOS.
+>
+> iOS: `APIClient.syncEngineToken` + `EngineServicing`; 409 → `APIError.brokerNotConnected`
+> (friendly "Finish the broker login"); `EngineDetailView` reconnect is now
+> broker-agnostic (open broker OAuth → `token/sync`, no token over the wire), with
+> manual paste kept as a fallback.
 
 ## 1. Problem & goal
 

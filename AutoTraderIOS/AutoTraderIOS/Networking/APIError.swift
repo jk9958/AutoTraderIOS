@@ -11,6 +11,7 @@ enum APIError: LocalizedError {
     case httpError(statusCode: Int, detail: String)
     case validationError(messages: [String])
     case engineAlreadyRunning
+    case brokerNotConnected
     case unauthorized
     case serverKeyNotConfigured(detail: String)
     case decodingError
@@ -33,6 +34,8 @@ enum APIError: LocalizedError {
             return msgs.joined(separator: "\n")
         case .engineAlreadyRunning:
             return "An engine is already running. Stop it first."
+        case .brokerNotConnected:
+            return "Connect the broker first, then try again."
         case .unauthorized:
             return "API key rejected. Set or update the write key in Settings → API Key."
         case .serverKeyNotConfigured(let detail):

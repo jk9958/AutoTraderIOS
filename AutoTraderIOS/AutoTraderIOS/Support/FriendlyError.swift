@@ -60,6 +60,11 @@ struct FriendlyError: Identifiable, Equatable {
                          message: "A bot is already running.",
                          fix: "Stop it first, or pick a different bot.",
                          systemImage: "bolt.badge.clock", isRetryable: false, pointsToSettings: false)
+        case .brokerNotConnected:
+            return .init(title: "Finish the broker login",
+                         message: "The broker login didn't complete on the server.",
+                         fix: "Log in with your broker, then try Reconnect again.",
+                         systemImage: "building.columns", isRetryable: true, pointsToSettings: false)
         case .validationError(let msgs):
             return .init(title: "Check your entries",
                          message: msgs.joined(separator: "\n"),

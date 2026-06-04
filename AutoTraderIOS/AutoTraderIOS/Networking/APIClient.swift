@@ -418,6 +418,19 @@ struct APIClient {
         return try decode(EngineActionResponse.self, from: data)
     }
 
+    /// POST /api/v1/engines/{id}/token/sync — requires X-API-Key.
+    /// Copies the server's current broker token into this bot's secrets server-side
+    /// (no token crosses the wire). 409 when the broker isn't logged in yet.
+    func syncEngineToken(_ engineId: String) async throws -> EngineActionResponse {
+        let path = "/api/v1/engines/\(Self.escape(engineId))/token/sync"
+        Self.logger.debug("→ POST \(path)")
+        var req = try urlRequest(path, method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(EngineActionResponse.self, from: data)
+    }
+
     /// PUT /api/v1/engines/{id}/token — requires X-API-Key.
     func updateEngineToken(_ engineId: String, accessToken: String) async throws -> EngineActionResponse {
         let path = "/api/v1/engines/\(Self.escape(engineId))/token"
@@ -570,6 +583,13 @@ struct APIClient {
             }
             throw APIError.httpError(statusCode: 503, detail: detail)
         case 409:
+            let detail = detailString()
+            // token/sync returns 409 when the broker isn't logged in on the server.
+            if detail.localizedCaseInsensitiveContains("connect the broker")
+                || detail.localizedCaseInsensitiveContains("login on the server") {
+                Self.logger.error("✗ Broker not connected")
+                throw APIError.brokerNotConnected
+            }
             Self.logger.error("✗ Engine already running")
             throw APIError.engineAlreadyRunning
         case 422:
