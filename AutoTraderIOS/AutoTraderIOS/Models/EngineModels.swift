@@ -83,6 +83,15 @@ enum EngineStrategy: String, CaseIterable, Identifiable, Codable {
 /// systemctl actions exposed by the mobile API.
 enum EngineLifecycleAction: String {
     case start, stop, restart
+
+    /// Past tense for user-facing confirmation messages.
+    var pastTense: String {
+        switch self {
+        case .start:   return "started"
+        case .stop:    return "stopped"
+        case .restart: return "restarted"
+        }
+    }
 }
 
 /// Heartbeat-derived lifecycle state reported by the server.

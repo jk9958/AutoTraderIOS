@@ -25,7 +25,7 @@ final class EngineDetailVM: ObservableObject {
     @Published var status: Loadable<EngineInfo> = .idle
     @Published var config: Loadable<JSONValue> = .idle
     @Published var busyAction: EngineLifecycleAction?
-    @Published var banner: String?
+    @Published var toast: ToastMessage?
     @Published var savingToken = false
     @Published var savingConfig = false
 
@@ -58,9 +58,12 @@ final class EngineDetailVM: ObservableObject {
         do {
             _ = try await client.engineLifecycle(engineId, action: action)
             Haptics.success()
+            toast = .success("\(BotNaming.display(engineId)) \(action.pastTense)")
             await loadStatus(client: client)
-        } catch let err as APIError { banner = err.errorDescription; Haptics.error() }
-        catch { banner = error.localizedDescription; Haptics.error() }
+        } catch {
+            Haptics.error()
+            toast = .error(FriendlyError.from(error).message)
+        }
     }
 
     /// Merge-update a single top-level param (e.g. flip dry_run).
@@ -72,8 +75,11 @@ final class EngineDetailVM: ObservableObject {
             let resp = try await client.patchEngineConfig(engineId, body: .init(params: [key: value]))
             config = .loaded(resp.config)
             Haptics.success()
-        } catch let err as APIError { banner = err.errorDescription; Haptics.error() }
-        catch { banner = error.localizedDescription; Haptics.error() }
+            toast = .success("Settings updated")
+        } catch {
+            Haptics.error()
+            toast = .error(FriendlyError.from(error).message)
+        }
     }
 
     func updateToken(_ token: String, client: EngineServicing) async -> Bool {
@@ -83,9 +89,13 @@ final class EngineDetailVM: ObservableObject {
         do {
             _ = try await client.updateEngineToken(engineId, accessToken: token)
             Haptics.success()
+            toast = .success("Broker login updated")
             return true
-        } catch let err as APIError { banner = err.errorDescription; Haptics.error(); return false }
-        catch { banner = error.localizedDescription; Haptics.error(); return false }
+        } catch {
+            Haptics.error()
+            toast = .error(FriendlyError.from(error).message)
+            return false
+        }
     }
 }
 

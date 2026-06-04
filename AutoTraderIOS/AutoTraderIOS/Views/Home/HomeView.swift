@@ -56,12 +56,13 @@ struct HomeView: View {
                 if msg != nil { Task { try? await Task.sleep(for: .seconds(4)); vm.banner = nil } }
             }
             .sheet(isPresented: $showCreate) {
-                CreateBotWizard { Task { await store.refresh() } }
+                CreateBotWizard { store.toast = .success("Bot created"); Task { await store.refresh() } }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showBrokers) { BrokersView() }
             .navigationDestination(isPresented: $showDiagnostics) { DiagnosticsView() }
         }
+        .toast(Binding(get: { store.toast }, set: { store.toast = $0 }))
     }
 
     // MARK: Hero (handles loading / failed / empty / running)

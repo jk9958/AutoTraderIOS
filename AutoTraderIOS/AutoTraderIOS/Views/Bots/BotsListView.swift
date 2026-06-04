@@ -39,7 +39,7 @@ struct BotsListView: View {
                     }
                 }
                 .sheet(isPresented: $showCreate) {
-                    CreateBotWizard { Task { await store.refresh() } }
+                    CreateBotWizard { store.toast = .success("Bot created"); Task { await store.refresh() } }
                 }
                 .sheet(isPresented: $showSettings) { SettingsView() }
                 .alert("You'll need an access code", isPresented: $showNeedsCode) {
@@ -54,6 +54,7 @@ struct BotsListView: View {
                     if msg != nil { Task { try? await Task.sleep(for: .seconds(4)); store.banner = nil } }
                 }
         }
+        .toast(Binding(get: { store.toast }, set: { store.toast = $0 }))
     }
 
     private func createTapped() {

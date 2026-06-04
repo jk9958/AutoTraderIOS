@@ -12,6 +12,8 @@ final class EnginesStore: ObservableObject {
     /// engineId → dry_run (true = Practice, false = Live). Absent = unknown.
     @Published private(set) var modes: [String: Bool] = [:]
     @Published var banner: String?
+    /// Transient confirmation of the last action (start/stop/restart/delete).
+    @Published var toast: ToastMessage?
 
     /// Resolves the current service each call so base-URL / API-key changes are picked up.
     private let service: () -> EngineServicing
@@ -92,10 +94,11 @@ final class EnginesStore: ObservableObject {
             _ = try await service().engineLifecycle(id, action: action)
             modes[id] = nil                 // mode may change after start/restart
             Haptics.success()
+            toast = .success("\(BotNaming.display(id)) \(action.pastTense)")
             await refresh()
         } catch {
-            banner = FriendlyError.from(error).message
             Haptics.error()
+            toast = .error(FriendlyError.from(error).message)
         }
     }
 
@@ -107,10 +110,11 @@ final class EnginesStore: ObservableObject {
             _ = try await service().deleteEngine(id)
             modes[id] = nil
             Haptics.success()
+            toast = .success("\(BotNaming.display(id)) deleted")
             await refresh()
         } catch {
-            banner = FriendlyError.from(error).message
             Haptics.error()
+            toast = .error(FriendlyError.from(error).message)
         }
     }
 

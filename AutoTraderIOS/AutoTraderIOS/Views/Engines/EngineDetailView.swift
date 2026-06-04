@@ -37,7 +37,7 @@ struct EngineDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.refresh(client: appState.client) }
         .refreshable { await vm.refresh(client: appState.client) }
-        .overlay(alignment: .bottom) { bannerView }
+        .toast($vm.toast)
         .sheet(isPresented: $showTokenSheet) { tokenSheet }
         .sheet(isPresented: $showBrokerAuth) {
             if let url = brokerAuthURL {
@@ -232,7 +232,7 @@ struct EngineDetailView: View {
             brokerAuthURL = try makeBrokerAuthURL()
             showBrokerAuth = true
         } catch {
-            vm.banner = FriendlyError.from(error).message
+            vm.toast = .error(FriendlyError.from(error).message)
         }
     }
 
@@ -292,21 +292,6 @@ struct EngineDetailView: View {
             }
         }
         .presentationDetents([.medium])
-    }
-
-    // MARK: Banner
-
-    @ViewBuilder
-    private var bannerView: some View {
-        if let banner = vm.banner {
-            Text(banner)
-                .font(.caption).foregroundStyle(.white)
-                .padding(12).frame(maxWidth: .infinity)
-                .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
-                .padding()
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task { try? await Task.sleep(for: .seconds(4)); vm.banner = nil }
-        }
     }
 
     private func relativeBeat(_ iso: String) -> String {
