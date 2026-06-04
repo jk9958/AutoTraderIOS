@@ -27,6 +27,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if !appState.isOnline { offlineBanner }
+                    accessCodeHint
                     heroSection
                     HStack(spacing: 12) { livePnlCard; brokerCard }
                     let engines = store.engines
@@ -251,6 +252,43 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
         .padding(14).glassCard()
+    }
+
+    /// Compact, tappable access-code status so users can see (and fix) it without
+    /// opening Settings. Prominent when missing; subtle when set.
+    @ViewBuilder
+    private var accessCodeHint: some View {
+        if appState.hasAPIKey {
+            Button { showSettings = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "key.fill").foregroundStyle(Theme.profitGreen)
+                    Text("Access code set").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .thinGlassCard()
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Access code is saved. Opens Settings.")
+        } else {
+            Button { showSettings = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.slash").foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No access code yet").font(.subheadline.weight(.semibold))
+                        Text("Needed to create and run bots. Add the code your provider gave you.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("Add").font(.caption.weight(.semibold))
+                }
+                .padding(12)
+                .thinGlassCard()
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Settings to add your access code.")
+        }
     }
 
     private var offlineBanner: some View {
