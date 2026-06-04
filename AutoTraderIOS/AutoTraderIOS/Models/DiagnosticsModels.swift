@@ -25,8 +25,27 @@ enum HealthLevel: String {
 
 struct ComponentHealth: Decodable {
     let status: String?
-    let reason: String?
+    /// `reason` may be a plain string OR an object (e.g. dashboard_processes returns
+    /// `{vix: bool, trend: bool}`), so decode it flexibly and render to text.
+    private let reasonValue: JSONValue?
+
     var level: HealthLevel { HealthLevel(raw: status) }
+    var reason: String? {
+        switch reasonValue {
+        case .none, .some(.null): return nil
+        case .some(let v):
+            let s = v.displayString
+            return s.isEmpty ? nil : s
+        }
+    }
+
+    enum CodingKeys: String, CodingKey { case status, reason }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        status = try? c.decodeIfPresent(String.self, forKey: .status)
+        reasonValue = try? c.decodeIfPresent(JSONValue.self, forKey: .reason)
+    }
 }
 
 struct HealthDeepResponse: Decodable {

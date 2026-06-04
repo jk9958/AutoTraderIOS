@@ -256,4 +256,20 @@ struct MobileAPIContractTests {
         #expect(r.sortedComponents.first?.name == "brokers")
         #expect(r.components?["engines"]?.level == .degraded)
     }
+
+    @Test func healthDeepToleratesObjectReason() throws {
+        // dashboard_processes returns `reason` as an OBJECT, not a string.
+        let json = """
+        {"status":"DEGRADED","components":{
+          "brokers":{"status":"HEALTHY","reason":"tokens present: ['fyers']"},
+          "dashboard_processes":{"status":"DEGRADED","reason":{"vix":false,"trend":true}}}}
+        """.data(using: .utf8)!
+        let r = try decoder.decode(HealthDeepResponse.self, from: json)
+        #expect(r.components?.count == 2)
+        #expect(r.components?["brokers"]?.reason?.contains("fyers") == true)
+        // object reason renders to non-empty text instead of failing the decode
+        let dp = try #require(r.components?["dashboard_processes"])
+        #expect(dp.level == .degraded)
+        #expect(dp.reason?.isEmpty == false)
+    }
 }

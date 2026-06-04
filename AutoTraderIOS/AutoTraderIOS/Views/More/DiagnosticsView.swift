@@ -54,6 +54,9 @@ struct DiagnosticsView: View {
                         Label(fix, systemImage: "wrench.and.screwdriver")
                             .font(.caption).foregroundStyle(.secondary)
                     }
+                    if item.health.level != .healthy, let reason = item.health.reason {
+                        Text(reason).font(.caption2).foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.vertical, 2)
             }
