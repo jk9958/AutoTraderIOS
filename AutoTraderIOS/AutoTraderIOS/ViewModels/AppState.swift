@@ -48,6 +48,11 @@ final class AppState: ObservableObject {
 
     @Published private(set) var client: APIClient
 
+    /// Network reachability, mirrored from `NetworkMonitor` for views to observe.
+    @Published private(set) var isOnline = true
+
+    private let networkMonitor = NetworkMonitor()
+    private var monitorCancellable: AnyCancellable?
     private var pollingTask: Task<Void, Never>?
     private var isFirstPollFailure = true
 
@@ -60,6 +65,10 @@ final class AppState: ObservableObject {
         var c = APIClient(baseURL: url)
         c.apiKey = key.isEmpty ? nil : key
         self.client = c
+        self.isOnline = networkMonitor.isOnline
+        monitorCancellable = networkMonitor.$isOnline
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] online in self?.isOnline = online }
         startLifecycleObservers()
     }
 

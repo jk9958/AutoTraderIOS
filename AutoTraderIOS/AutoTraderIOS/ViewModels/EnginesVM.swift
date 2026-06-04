@@ -23,7 +23,7 @@ final class EnginesVM: ObservableObject {
 
     private var loadTask: Task<Void, Never>?
 
-    func load(client: APIClient, showSpinner: Bool = true) {
+    func load(client: EngineServicing, showSpinner: Bool = true) {
         loadTask?.cancel()
         if showSpinner, state.value == nil { state = .loading }
         loadTask = Task { [weak self] in
@@ -47,7 +47,7 @@ final class EnginesVM: ObservableObject {
         }
     }
 
-    func perform(_ action: EngineLifecycleAction, on id: String, client: APIClient) async {
+    func perform(_ action: EngineLifecycleAction, on id: String, client: EngineServicing) async {
         guard !busy.contains(id) else { return }   // de-dupe concurrent taps
         busy.insert(id)
         defer { busy.remove(id) }
@@ -64,7 +64,7 @@ final class EnginesVM: ObservableObject {
         }
     }
 
-    func delete(_ id: String, client: APIClient) async {
+    func delete(_ id: String, client: EngineServicing) async {
         guard !busy.contains(id) else { return }
         busy.insert(id)
         defer { busy.remove(id) }
@@ -97,7 +97,7 @@ final class EngineDetailVM: ObservableObject {
 
     init(engineId: String) { self.engineId = engineId }
 
-    func refresh(client: APIClient) async {
+    func refresh(client: EngineServicing) async {
         if status.value == nil { status = .loading }
         if config.value == nil { config = .loading }
         async let s = loadStatus(client: client)
@@ -105,19 +105,19 @@ final class EngineDetailVM: ObservableObject {
         _ = await (s, c)
     }
 
-    private func loadStatus(client: APIClient) async {
+    private func loadStatus(client: EngineServicing) async {
         do { status = .loaded(try await client.engineStatus(engineId).engine) }
         catch let err as APIError { status = .failed(err.errorDescription ?? "Failed") }
         catch { status = .failed(error.localizedDescription) }
     }
 
-    private func loadConfig(client: APIClient) async {
+    private func loadConfig(client: EngineServicing) async {
         do { config = .loaded(try await client.engineConfig(engineId).config) }
         catch let err as APIError { config = .failed(err.errorDescription ?? "Failed") }
         catch { config = .failed(error.localizedDescription) }
     }
 
-    func lifecycle(_ action: EngineLifecycleAction, client: APIClient) async {
+    func lifecycle(_ action: EngineLifecycleAction, client: EngineServicing) async {
         guard busyAction == nil else { return }
         busyAction = action
         defer { busyAction = nil }
@@ -130,7 +130,7 @@ final class EngineDetailVM: ObservableObject {
     }
 
     /// Merge-update a single top-level param (e.g. flip dry_run).
-    func patchParam(_ key: String, value: JSONValue, client: APIClient) async {
+    func patchParam(_ key: String, value: JSONValue, client: EngineServicing) async {
         guard !savingConfig else { return }
         savingConfig = true
         defer { savingConfig = false }
@@ -142,7 +142,7 @@ final class EngineDetailVM: ObservableObject {
         catch { banner = error.localizedDescription; Haptics.error() }
     }
 
-    func updateToken(_ token: String, client: APIClient) async -> Bool {
+    func updateToken(_ token: String, client: EngineServicing) async -> Bool {
         guard !savingToken else { return false }
         savingToken = true
         defer { savingToken = false }
@@ -174,7 +174,7 @@ final class CreateEngineVM: ObservableObject {
     var idIsValid: Bool { EngineValidation.isValidEngineId(engineId) }
     var canSubmit: Bool { idIsValid && !isSubmitting }
 
-    func submit(client: APIClient) async -> Bool {
+    func submit(client: EngineServicing) async -> Bool {
         guard canSubmit else { return false }
         isSubmitting = true
         defer { isSubmitting = false }

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Single-engine console: live status, lifecycle controls, config inspector,
-/// dry-run toggle (PATCH), and broker token update (PUT).
+/// Single-bot console: status, start/stop/restart, Practice-mode toggle (PATCH),
+/// broker login update (PUT), advanced config, and delete. Plain language throughout.
 struct EngineDetailView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm: EngineDetailVM
@@ -19,10 +19,10 @@ struct EngineDetailView: View {
         List {
             statusSection
             controlsSection
-            configSection
-            tokenSection
+            settingsSection
+            aboutSection
         }
-        .navigationTitle(vm.engineId)
+        .navigationTitle(BotNaming.display(vm.engineId))
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.refresh(client: appState.client) }
         .refreshable { await vm.refresh(client: appState.client) }
@@ -34,23 +34,26 @@ struct EngineDetailView: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        Section("Status") {
+        Section {
             switch vm.status {
             case .idle, .loading:
                 HStack { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
             case .failed(let msg):
                 Label(msg, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             case .loaded(let e):
-                LabeledContent("State") { EngineStatusBadge(state: e.runState) }
-                if let broker = e.broker, !broker.isEmpty { LabeledContent("Broker", value: broker.uppercased()) }
-                if let strat = e.strategy, !strat.isEmpty { LabeledContent("Strategy", value: strat) }
-                if let pid = e.pid { LabeledContent("PID", value: String(pid)) }
-                if let beat = e.lastBeat { LabeledContent("Last heartbeat", value: beat) }
+                LabeledContent("Status") { StatusChip(status: AppStatus(runState: e.runState)) }
+                if let broker = e.broker, !broker.isEmpty { LabeledContent("Broker", value: broker.capitalized) }
+                if let strat = e.strategy, !strat.isEmpty {
+                    LabeledContent("Style", value: EngineStrategy.friendlyName(forRaw: strat))
+                }
+                if let beat = e.lastBeat { LabeledContent("Last seen", value: relativeBeat(beat)) }
             }
+        } footer: {
+            Text("“Last seen” is when the bot last checked in. If it says it isn't responding, try Restart.")
         }
     }
 
-    // MARK: Lifecycle controls
+    // MARK: Controls
 
     @ViewBuilder
     private var controlsSection: some View {
@@ -61,13 +64,16 @@ struct EngineDetailView: View {
         } header: {
             Text("Controls")
         } footer: {
-            if !canWrite { Text("Add your API key in Settings to control this engine.") }
+            if !canWrite { Text("Add your admin access code in Settings to control this bot.") }
         }
     }
 
     private func lifecycleButton(_ action: EngineLifecycleAction, _ title: String, _ icon: String, _ tint: Color) -> some View {
         Button {
-            Task { await vm.lifecycle(action, client: appState.client) }
+            Task {
+                await vm.lifecycle(action, client: appState.client)
+                if action == .start { Analytics.shared.track(.botStarted(live: false)) }
+            }
         } label: {
             HStack {
                 Label(title, systemImage: icon)
@@ -79,50 +85,51 @@ struct EngineDetailView: View {
         .disabled(!canWrite || vm.busyAction != nil)
     }
 
-    // MARK: Config inspector
+    // MARK: Settings (Practice toggle + token + advanced)
 
     @ViewBuilder
-    private var configSection: some View {
+    private var settingsSection: some View {
         Section {
             switch vm.config {
             case .idle, .loading:
-                HStack { ProgressView(); Text("Loading config…").foregroundStyle(.secondary) }
+                HStack { ProgressView(); Text("Loading settings…").foregroundStyle(.secondary) }
             case .failed(let msg):
                 Label(msg, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             case .loaded(let cfg):
-                configRows(cfg)
-            }
-        } header: {
-            Text("Configuration")
-        } footer: {
-            Text("Live YAML config. Toggling dry-run merge-patches the engine; restart to apply.")
-        }
-    }
+                if let dryRun = dryRunValue(in: cfg) {
+                    Toggle(isOn: Binding(
+                        get: { dryRun },
+                        set: { newVal in Task { await vm.patchParam("dry_run", value: .bool(newVal), client: appState.client) } }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Practice mode")
+                            Text(dryRun ? "No real money." : "⚠️ Live — real money.")
+                                .font(.caption).foregroundStyle(dryRun ? .secondary : Theme.lossRed)
+                        }
+                    }
+                    .disabled(!canWrite || vm.savingConfig)
+                }
+                Button { tokenInput = ""; showTokenSheet = true } label: {
+                    Label("Update broker login", systemImage: "key.fill")
+                }
+                .disabled(!canWrite)
 
-    @ViewBuilder
-    private func configRows(_ cfg: JSONValue) -> some View {
-        // Surface a dry_run toggle if present in params.
-        if let dryRun = dryRunValue(in: cfg) {
-            Toggle(isOn: Binding(
-                get: { dryRun },
-                set: { newVal in Task { await vm.patchParam("dry_run", value: .bool(newVal), client: appState.client) } }
-            )) {
-                Label("Dry run (paper)", systemImage: "testtube.2")
-            }
-            .disabled(!canWrite || vm.savingConfig)
-        }
-
-        ForEach(cfg.sortedObjectRows, id: \.key) { row in
-            if case .object(let nested) = row.value {
-                DisclosureGroup(row.key) {
-                    ForEach(nested.sorted { $0.key < $1.key }, id: \.key) { sub in
-                        LabeledContent(sub.key, value: sub.value.displayString)
-                            .font(.callout)
+                DisclosureGroup("Advanced details") {
+                    ForEach(cfg.sortedObjectRows, id: \.key) { row in
+                        if case .object(let nested) = row.value {
+                            ForEach(nested.sorted { $0.key < $1.key }, id: \.key) { sub in
+                                LabeledContent(sub.key, value: sub.value.displayString).font(.callout)
+                            }
+                        } else {
+                            LabeledContent(row.key, value: row.value.displayString).font(.callout)
+                        }
                     }
                 }
-            } else {
-                LabeledContent(row.key, value: row.value.displayString)
             }
+        } header: {
+            Text("Settings")
+        } footer: {
+            Text("Changing Practice mode updates the bot. Restart it for the change to take effect.")
         }
     }
 
@@ -133,42 +140,39 @@ struct EngineDetailView: View {
         return b
     }
 
-    // MARK: Broker token
+    // MARK: About + delete
 
-    @ViewBuilder
-    private var tokenSection: some View {
-        Section {
-            Button {
-                tokenInput = ""
-                showTokenSheet = true
-            } label: {
-                Label("Update broker token", systemImage: "key.fill")
+    private var aboutSection: some View {
+        Section("About this bot") {
+            if case .loaded(let e) = vm.status, let strat = e.strategy,
+               let s = EngineStrategy(rawValue: strat) {
+                Text(s.subtitle).font(.callout).foregroundStyle(.secondary)
             }
-            .disabled(!canWrite)
-        } footer: {
-            Text("Writes the broker access token into the engine's secrets file. Restart to pick it up.")
+            LabeledContent("ID", value: vm.engineId).font(.caption).foregroundStyle(.secondary)
         }
     }
+
+    // MARK: Token sheet
 
     private var tokenSheet: some View {
         NavigationStack {
             Form {
-                Section("Access token") {
-                    TextField("Paste broker access token", text: $tokenInput, axis: .vertical)
+                Section {
+                    TextField("Paste broker login token", text: $tokenInput, axis: .vertical)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .lineLimit(1...4)
+                } footer: {
+                    Text("Broker logins expire daily. Paste a fresh token, then restart the bot.")
                 }
             }
-            .navigationTitle("Update Token")
+            .navigationTitle("Broker login")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showTokenSheet = false } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task {
-                            if await vm.updateToken(tokenInput, client: appState.client) { showTokenSheet = false }
-                        }
+                        Task { if await vm.updateToken(tokenInput, client: appState.client) { showTokenSheet = false } }
                     }
                     .disabled(tokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.savingToken)
                 }
@@ -183,17 +187,23 @@ struct EngineDetailView: View {
     private var bannerView: some View {
         if let banner = vm.banner {
             Text(banner)
-                .font(.caption)
-                .foregroundStyle(.white)
-                .padding(12)
-                .frame(maxWidth: .infinity)
+                .font(.caption).foregroundStyle(.white)
+                .padding(12).frame(maxWidth: .infinity)
                 .background(.red.opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
                 .padding()
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task {
-                    try? await Task.sleep(for: .seconds(4))
-                    vm.banner = nil
-                }
+                .task { try? await Task.sleep(for: .seconds(4)); vm.banner = nil }
         }
+    }
+
+    private func relativeBeat(_ iso: String) -> String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = f.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        guard let date else { return iso }
+        let secs = Int(-date.timeIntervalSinceNow)
+        if secs < 60 { return "\(max(secs, 0))s ago" }
+        if secs < 3600 { return "\(secs / 60)m ago" }
+        return "\(secs / 3600)h ago"
     }
 }

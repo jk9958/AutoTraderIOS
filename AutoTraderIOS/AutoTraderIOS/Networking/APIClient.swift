@@ -290,6 +290,51 @@ struct APIClient {
         return url
     }
 
+    // MARK: - Diagnostics & extra monitoring
+
+    /// GET /health/deep — component-level system check (never 500s server-side).
+    func healthDeep() async throws -> HealthDeepResponse {
+        Self.logger.debug("→ GET /health/deep")
+        let (data, response) = try await fetch("/health/deep", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(HealthDeepResponse.self, from: data)
+    }
+
+    /// GET /metrics/app — free-form in-process counters/latency summary.
+    func appMetrics() async throws -> JSONValue {
+        Self.logger.debug("→ GET /metrics/app")
+        let (data, response) = try await fetch("/metrics/app", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(JSONValue.self, from: data)
+    }
+
+    /// GET /scalping/mtm — live P&L for the VIX scalp loop (null when flat).
+    func scalpingMTM() async throws -> ScalpingMTMResponse {
+        Self.logger.debug("→ GET /scalping/mtm")
+        let (data, response) = try await fetch("/scalping/mtm", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(ScalpingMTMResponse.self, from: data)
+    }
+
+    /// POST /stop/vix-scalp — stop only the scalp loop.
+    func stopVixScalp() async throws -> StopResponse {
+        Self.logger.debug("→ POST /stop/vix-scalp")
+        var req = try urlRequest("/stop/vix-scalp", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(StopResponse.self, from: data)
+    }
+
+    /// GET /logs/vix — VIX scalp logs.
+    func vixLogs(lines: Int = 200) async throws -> LogsResponse {
+        let url = try makeURL("/logs/vix", query: [URLQueryItem(name: "lines", value: String(lines))])
+        Self.logger.debug("→ GET /logs/vix?lines=\(lines)")
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogsResponse.self, from: data)
+    }
+
     // MARK: - Mobile API v1 — multi-engine management
 
     /// GET /api/v1/engines — open (no key).

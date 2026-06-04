@@ -29,12 +29,54 @@ enum EngineStrategy: String, CaseIterable, Identifiable, Codable {
     case vixScalp   = "vix_scalp"
     case trend
     var id: String { rawValue }
+
+    /// Engineer-facing name (kept for advanced screens).
     var displayName: String {
         switch self {
         case .ironCondor: return "Iron Condor"
         case .vixScalp: return "VIX Scalp"
         case .trend: return "Trend Agent"
         }
+    }
+
+    /// Novice-facing name (see plan glossary).
+    var friendlyName: String {
+        switch self {
+        case .ironCondor: return "Range Income"
+        case .vixScalp:   return "Volatility Spike"
+        case .trend:      return "Trend Follower"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .ironCondor: return "Earns when the market stays calm and range-bound."
+        case .vixScalp:   return "Trades quick moves when the market gets jumpy."
+        case .trend:      return "Rides sustained up or down moves."
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .ironCondor: return "arrow.left.and.right"
+        case .vixScalp:   return "bolt.fill"
+        case .trend:      return "chart.line.uptrend.xyaxis"
+        }
+    }
+
+    enum Risk: String { case lower = "Lower risk", higher = "Higher risk" }
+    var risk: Risk {
+        switch self {
+        case .ironCondor: return .lower
+        case .vixScalp:   return .higher
+        case .trend:      return .higher
+        }
+    }
+
+    /// Friendly name for a raw strategy string coming back from the server.
+    static func friendlyName(forRaw raw: String?) -> String {
+        guard let raw, let s = EngineStrategy(rawValue: raw) else { return raw ?? "—" }
+        return s.friendlyName
     }
 }
 
@@ -150,6 +192,19 @@ enum EngineValidation {
     static func isValidEngineId(_ id: String) -> Bool {
         guard !id.isEmpty else { return false }
         return id.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil
+    }
+
+    /// Turn a friendly bot name ("My Range Bot") into a valid engine_id
+    /// ("my_range_bot"). Collapses runs of invalid chars to a single underscore.
+    static func slugify(_ name: String) -> String {
+        let lowered = name.lowercased()
+        let mapped = lowered.map { ch -> Character in
+            (ch.isLetter || ch.isNumber || ch == "-") ? ch : "_"
+        }
+        var slug = String(mapped)
+        while slug.contains("__") { slug = slug.replacingOccurrences(of: "__", with: "_") }
+        slug = slug.trimmingCharacters(in: CharacterSet(charactersIn: "_-"))
+        return slug
     }
     /// Server: rotation key must be ≥ 12 chars.
     static func isValidApiKey(_ key: String) -> Bool { key.count >= 12 }

@@ -39,14 +39,14 @@ Modernized to native iOS + glass materials (HIG-aligned). Use `glassCard()` / `t
 
 ## Tabs
 
-1. **Status** (`DashboardView`) — engine status card (pulsing dot, mode badge, uptime, stop), broker-auth card (token chips + login rows).
-2. **Engines** (`EnginesListView`) — multi-engine management via the **mobile API v1** (see below). List (heartbeat status, swipe start/stop/delete, context menu), `CreateEngineView` (broker × strategy form), `EngineDetailView` (status, start/stop/restart, config inspector + dry-run PATCH, broker-token PUT). Writes require the X-API-Key.
-3. **Trade** (`TradeView`) — strategy cards → Iron Condor (full form + margin estimate), VIX Scalp (configurable params), Options.
-4. **Trend** (`TrendAgentView`) — Trend Agent: status/start/stop, launch config, open positions, **Adaptive Progress** (Swift Charts: win-rate trend, cumulative & per-cycle P&L → `TrendAdaptiveProgressView`), evolved params (`TrendLearningView`), trades/logs.
-5. **Logs** (`LogsView`) — engine + API logs.
-6. **Positions** (`TradesView`) — `MTMCard` live P&L + trade-history cards.
+The app is **novice-first** (see [`docs/PLAN_NOVICE_UX_AND_API.md`](docs/PLAN_NOVICE_UX_AND_API.md)). Plain-language **glossary** is enforced: Engine→**Bot**, dry_run→**Practice mode**, X-API-Key→**admin access code**, Iron Condor→**Range Income**, VIX Scalp→**Volatility Spike**, Trend→**Trend Follower** (`EngineStrategy.friendlyName`). First launch shows `OnboardingView` (gated by `didOnboard`). 4 tabs (`RootTab` enum):
 
-> 6 tabs: on compact iPhone the last items collapse into the system "More" tab. Reorder in `RootTabView` if different prominence is wanted.
+1. **Home** (`HomeView`/`HomeVM`) — dashboard answering: what's running, broker, style, live P&L, alerts, next action. Aggregates `/api/v1/engines` + `/status` + `/mtm` + `/health/deep`.
+2. **Bots** (`BotsListView`) — multi-engine **mobile API v1** (see below). Searchable list, swipe/context start-stop-restart-delete, `CreateBotWizard` (4-step guided flow, slugifies name→engine_id, Practice default), `EngineDetailView` (status, controls, Practice toggle PATCH, broker-login PUT, advanced config, delete). Writes need the admin code.
+3. **Activity** (`ActivityView`/`ActivityVM`) — segmented Positions (`MTMCard`) / Trades (history) / Performance (`/metrics` chart).
+4. **More** (`MoreView`) — Brokers, System check (`DiagnosticsView` ← `/health/deep`+`/metrics/app`), Logs (Engine/API/**Scalp**), Settings, Help. **Advanced** section preserves the original engineer screens for backward compat: `DashboardView` (Brokers), `TradeView` (Manual trading), `TrendAgentView` (Trend bot). All presented as sheets.
+
+Shared: `AppStatus`+`StatusChip` (one visual vocabulary), `FriendlyError` (no raw HTTP shown), `NetworkMonitor`→`AppState.isOnline`, `Analytics` (no-op protocol), `EngineServicing` protocol (DI for VM tests).
 
 ## Mobile API v1 — multi-engine management (X-API-Key)
 

@@ -128,4 +128,64 @@ struct MobileAPIContractTests {
         #expect(EngineBroker.allCases.map(\.rawValue) == ["fyers", "kite", "tradesmart"])
         #expect(EngineLifecycleAction.restart.rawValue == "restart")
     }
+
+    // MARK: Novice UX helpers
+
+    @Test func slugifyProducesValidEngineIds() {
+        #expect(EngineValidation.slugify("My Range Bot") == "my_range_bot")
+        #expect(EngineValidation.slugify("Scalper #1!!") == "scalper_1")
+        #expect(EngineValidation.slugify("  spaced  out  ") == "spaced_out")
+        // Output must always satisfy the server regex when non-empty.
+        #expect(EngineValidation.isValidEngineId(EngineValidation.slugify("My Range Bot")))
+    }
+
+    @Test func friendlyNamesMatchGlossary() {
+        #expect(EngineStrategy.ironCondor.friendlyName == "Range Income")
+        #expect(EngineStrategy.vixScalp.friendlyName == "Volatility Spike")
+        #expect(EngineStrategy.trend.friendlyName == "Trend Follower")
+        #expect(EngineStrategy.friendlyName(forRaw: "iron_condor") == "Range Income")
+        #expect(EngineStrategy.friendlyName(forRaw: "unknown_x") == "unknown_x")
+    }
+
+    @Test func botNamingHumanizesEngineId() {
+        #expect(BotNaming.display("my_range_bot") == "My Range Bot")
+        #expect(BotNaming.display("engine-fyers-01") == "Engine Fyers 01")
+    }
+
+    @Test func friendlyErrorMapsUnauthorizedToSettings() {
+        let fe = FriendlyError.from(APIError.unauthorized)
+        #expect(fe.pointsToSettings)
+        #expect(!fe.isRetryable)
+        #expect(fe.title == "Admin code needed")
+    }
+
+    @Test func friendlyErrorRetryableForServerAndNetwork() {
+        #expect(FriendlyError.from(APIError.noNetwork).isRetryable)
+        #expect(FriendlyError.from(APIError.httpError(statusCode: 500, detail: "")).isRetryable)
+        #expect(!FriendlyError.from(APIError.serverKeyNotConfigured(detail: "x")).isRetryable)
+    }
+
+    @Test func runStateMapsToAppStatus() {
+        #expect(AppStatus(runState: .running) == .running)
+        #expect(AppStatus(runState: .stale) == .notResponding)
+        #expect(AppStatus(runState: .stopped) == .stopped)
+    }
+
+    @Test func healthLevelMapsToAppStatus() {
+        #expect(HealthLevel(raw: "HEALTHY").appStatus == .healthy)
+        #expect(HealthLevel(raw: "DEGRADED").appStatus == .warning)
+        #expect(HealthLevel(raw: "FAILED").appStatus == .error)
+    }
+
+    @Test func decodesHealthDeep() throws {
+        let json = """
+        {"status":"DEGRADED","components":{
+          "brokers":{"status":"HEALTHY","reason":"tokens present: ['fyers']"},
+          "engines":{"status":"DEGRADED","reason":"stale: ['e1']"}}}
+        """.data(using: .utf8)!
+        let r = try decoder.decode(HealthDeepResponse.self, from: json)
+        #expect(r.overall == .degraded)
+        #expect(r.sortedComponents.first?.name == "brokers")
+        #expect(r.components?["engines"]?.level == .degraded)
+    }
 }

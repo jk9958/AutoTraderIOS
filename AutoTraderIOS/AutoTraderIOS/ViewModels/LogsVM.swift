@@ -2,8 +2,9 @@ import SwiftUI
 import Combine
 
 enum LogType: String, CaseIterable {
-    case main = "Engine"
-    case api  = "API"
+    case main  = "Engine"
+    case api   = "API"
+    case scalp = "Scalp"
 }
 
 @MainActor
@@ -62,9 +63,12 @@ final class LogsVM: ObservableObject {
         if lines.isEmpty { isLoading = true }
         defer { isLoading = false }
         do {
-            let resp = logType == .api
-                ? try await client.apiLogs(lines: lineCount)
-                : try await client.logs(lines: lineCount)
+            let resp: LogsResponse
+            switch logType {
+            case .api:   resp = try await client.apiLogs(lines: lineCount)
+            case .scalp: resp = try await client.vixLogs(lines: lineCount)
+            case .main:  resp = try await client.logs(lines: lineCount)
+            }
             lines = resp.lines
             source = resp.source ?? ""
             error = nil

@@ -1,23 +1,35 @@
 import SwiftUI
 
+enum RootTab: Hashable {
+    case home, bots, activity, more
+}
+
 struct RootTabView: View {
     @EnvironmentObject var appState: AppState
+    @AppStorage("didOnboard") private var didOnboard = false
+    @State private var selection: RootTab = .home
 
     var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem { Label("Status", systemImage: "gauge.with.needle") }
-            EnginesListView()
-                .tabItem { Label("Engines", systemImage: "server.rack") }
-            TradeView()
-                .tabItem { Label("Trade", systemImage: "bolt.fill") }
-            TrendAgentView()
-                .tabItem { Label("Trend", systemImage: "brain.head.profile") }
-            LogsView()
-                .tabItem { Label("Logs", systemImage: "doc.text.magnifyingglass") }
-            TradesView()
-                .tabItem { Label("Positions", systemImage: "chart.line.uptrend.xyaxis") }
+        TabView(selection: $selection) {
+            HomeView(selection: $selection)
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(RootTab.home)
+
+            BotsListView()
+                .tabItem { Label("Bots", systemImage: "server.rack") }
+                .tag(RootTab.bots)
+
+            ActivityView()
+                .tabItem { Label("Activity", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(RootTab.activity)
+
+            MoreView()
+                .tabItem { Label("More", systemImage: "ellipsis.circle") }
+                .tag(RootTab.more)
         }
         .tint(.blue)
+        .fullScreenCover(isPresented: Binding(get: { !didOnboard }, set: { didOnboard = !$0 })) {
+            OnboardingView()
+        }
     }
 }

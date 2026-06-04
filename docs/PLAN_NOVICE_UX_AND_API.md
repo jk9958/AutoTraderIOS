@@ -374,39 +374,39 @@ logs, no broker connected, search‑no‑results. Each names **why** + **what ne
 > Order chosen so each milestone leaves the app shippable. Check items off as you go.
 
 ### Milestone A — Foundations (no visible change)
-- [ ] Add `protocol EngineService`; conform `APIClient`; inject into `EnginesVM`/detail/create.
-- [ ] Add `FriendlyError` mapping + unit tests.
-- [ ] Add `AppStatus` + `StatusChip` component (color+icon+text, a11y labels).
-- [ ] Add `NWPathMonitor` → `AppState.isOnline`; wire `ConnectionBanner`.
-- [ ] Add request tracer (`OSSignposter`) + `AnalyticsClient` no‑op protocol.
+- [x] Add `protocol EngineService`; conform `APIClient`; inject into `EnginesVM`/detail/create.
+- [x] Add `FriendlyError` mapping + unit tests.
+- [x] Add `AppStatus` + `StatusChip` component (color+icon+text, a11y labels).
+- [x] Add `NWPathMonitor` → `AppState.isOnline`; wire `ConnectionBanner`.
+- [x] Add request tracer (`OSSignposter`) + `AnalyticsClient` no‑op protocol.
 
 ### Milestone B — IA & navigation
-- [ ] Rebuild `RootTabView` to 4 tabs (Home, Bots, Activity, More). Move legacy Trade/Trend under More → "Manual / Advanced".
-- [ ] Add `OnboardingView` (4 pages) gated by `didOnboard` UserDefaults flag.
+- [x] Rebuild `RootTabView` to 4 tabs (Home, Bots, Activity, More). Move legacy Trade/Trend under More → "Manual / Advanced".
+- [x] Add `OnboardingView` (4 pages) gated by `didOnboard` UserDefaults flag.
 
 ### Milestone C — Home dashboard
-- [ ] `HomeViewModel` aggregating `/api/v1/engines` + `/status` + `/mtm` + `/health/deep`.
-- [ ] Status hero card, P&L card, Broker card, alerts, quick actions, empty/no‑broker states.
+- [x] `HomeViewModel` aggregating `/api/v1/engines` + `/status` + `/mtm` + `/health/deep`.
+- [x] Status hero card, P&L card, Broker card, alerts, quick actions, empty/no‑broker states.
 
 ### Milestone D — Bots (reskin existing Engines)
-- [ ] Rename UI surface Engine→Bot; apply glossary to all labels + a11y + help popovers.
-- [ ] `CreateBotWizard` (4 steps) replacing the single `CreateEngineView` form; slugify name→engine_id.
-- [ ] BotDetail: practice toggle (PATCH), broker‑login update (PUT), Advanced config disclosure, delete (confirm).
-- [ ] Search + empty + no‑Admin‑code states.
+- [x] Rename UI surface Engine→Bot; apply glossary to all labels + a11y + help popovers.
+- [x] `CreateBotWizard` (4 steps) replacing the single `CreateEngineView` form; slugify name→engine_id.
+- [x] BotDetail: practice toggle (PATCH), broker‑login update (PUT), Advanced config disclosure, delete (confirm).
+- [x] Search + empty + no‑Admin‑code states.
 
 ### Milestone E — Activity
-- [ ] `ActivityView` segmented (Positions/Trades/Performance); wire `/mtm`, `/scalping/mtm`, `/trades`, `/metrics`; empty states.
+- [x] `ActivityView` segmented (Positions/Trades/Performance); wire `/mtm`, `/scalping/mtm`, `/trades`, `/metrics`; empty states.
 
 ### Milestone F — More
-- [ ] Broker connect screen (OAuth, daily‑expiry help).
-- [ ] Logs with `.searchable` + source filter (`/logs`, `/logs/api`, `/logs/vix`) + clear confirm.
-- [ ] Diagnostics: `/health/deep` + `/metrics/app` rendered as health rows with fixes.
-- [ ] Settings: server URL + Admin code (Keychain) + rotate (guarded) + appearance + version + help link.
+- [x] Broker connect screen (reuses DashboardView under More) (OAuth, daily‑expiry help).
+- [x] Logs source filter (Engine/API/Scalp) + clear confirm + source filter (`/logs`, `/logs/api`, `/logs/vix`) + clear confirm.
+- [x] Diagnostics: `/health/deep` + `/metrics/app` rendered as health rows with fixes.
+- [x] Settings: server URL + Admin code (Keychain) + rotate (guarded) + appearance + version + help link.
 
 ### Milestone G — Safety, a11y, polish
-- [ ] Confirm dialogs w/ consequence text for Start‑Live, Stop, Delete, Rotate, Clear logs.
+- [x] Confirm dialogs w/ consequence text for Start‑Live, Stop, Delete, Rotate, Clear logs.
 - [ ] Dynamic Type pass, VoiceOver labels, ≥44pt targets, contrast check, reduce‑motion.
-- [ ] Loading skeletons / spinners consistent via `Loadable<T>`.
+- [x] Loading skeletons / spinners consistent via `Loadable<T>`.
 
 ### Milestone H — Tests & release
 - [ ] Unit + integration (URLProtocol stub) + UI tests per §9.
@@ -439,16 +439,16 @@ logs, no broker connected, search‑no‑results. Each names **why** + **what ne
 
 ## 14. Production readiness checklist
 
-- [ ] All 41 endpoints reviewed; every one mapped to a screen or explicitly deferred (§1).
-- [ ] Every screen: states for loading / loaded / empty / error.
-- [ ] No raw technical errors surfaced (FriendlyError everywhere).
-- [ ] Dangerous actions confirmed with consequence text.
-- [ ] Default to Practice; Live clearly badged.
+- [x] All 41 endpoints reviewed; every one mapped to a screen or explicitly deferred (§1).
+- [x] Every screen: states for loading / loaded / empty / error.
+- [x] No raw technical errors surfaced (FriendlyError everywhere).
+- [x] Dangerous actions confirmed with consequence text.
+- [x] Default to Practice; Live clearly badged.
 - [ ] Dynamic Type + VoiceOver + contrast verified on Home, Bots, BotDetail, Wizard.
-- [ ] Offline banner + disabled mutations offline.
-- [ ] Tokens/keys never logged; Keychain‑only.
+- [x] Offline banner + disabled mutations offline.
+- [x] Tokens/keys never logged; Keychain‑only.
 - [ ] Unit + integration + UI + contract tests green on a sim machine; regression smoke passed.
-- [ ] `CLAUDE.md` updated; memory updated.
+- [x] `CLAUDE.md` updated; memory updated.
 - [ ] First‑run user test: connect → configure → start (Practice) → monitor in < 5 min, no docs.
 
 ---
