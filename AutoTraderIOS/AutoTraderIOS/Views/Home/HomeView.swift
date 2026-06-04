@@ -156,13 +156,20 @@ struct HomeView: View {
     // MARK: Stat cards
 
     private var livePnlCard: some View {
+        // NOTE: /mtm is the MAIN (default iron-condor) engine's open position only —
+        // it does NOT include bots created via the mobile API. Labelled accordingly
+        // so it isn't read as the featured bot's P&L.
         let pnl = vm.liveMTM?.mtmInr
-        return statCard(title: "Live P&L", systemImage: "indianrupeesign.circle") {
+        return statCard(title: "Open P&L", systemImage: "indianrupeesign.circle") {
             if let pnl {
-                let sign = pnl >= 0 ? "+" : "-"
-                Text("\(sign)₹\(Int(abs(pnl)))")
-                    .font(.title2.bold().monospacedDigit())
-                    .foregroundStyle(pnl >= 0 ? Theme.profitGreen : Theme.lossRed)
+                VStack(alignment: .leading, spacing: 2) {
+                    let sign = pnl >= 0 ? "+" : "-"
+                    Text("\(sign)₹\(Int(abs(pnl)))")
+                        .font(.title2.bold().monospacedDigit())
+                        .foregroundStyle(pnl >= 0 ? Theme.profitGreen : Theme.lossRed)
+                    Text("Main engine")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             } else {
                 Text(vm.marketOpen == false ? "Market closed" : "No open trades")
                     .font(.subheadline).foregroundStyle(.secondary)

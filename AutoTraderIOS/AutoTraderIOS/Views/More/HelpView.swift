@@ -18,7 +18,7 @@ struct HelpView: View {
                 glossary("Practice mode", "Simulated trading. No real money is used.")
                 glossary("Live mode", "Real trades with real money.")
                 glossary("Admin access code", "Unlocks making changes like creating or starting bots.")
-                glossary("Live P&L", "Your profit or loss right now on open positions.")
+                glossary("Open P&L", "Profit or loss right now on the main engine's open position. Individual bots report progress in their own logs.")
             }
 
             Section("Staying safe") {

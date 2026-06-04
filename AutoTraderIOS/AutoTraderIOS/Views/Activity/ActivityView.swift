@@ -52,6 +52,7 @@ struct ActivityView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if let mtm = vm.mtm {
+                        sectionLabel("Main trading engine")
                         MTMCard(mtm: mtm)
                     } else if vm.scalpHasPositions {
                         infoCard("A Volatility Spike bot has open positions.",
@@ -126,6 +127,13 @@ struct ActivityView: View {
     }
 
     // MARK: Building blocks
+
+    private func sectionLabel(_ text: String) -> some View {
+        HStack {
+            Text(text).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+            Spacer()
+        }
+    }
 
     private func infoCard(_ title: String, _ message: String, _ icon: String) -> some View {
         HStack(spacing: 12) {

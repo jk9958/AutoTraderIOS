@@ -7,6 +7,13 @@ struct SettingsView: View {
 
     @State private var showRotate = false
     @State private var newKeyInput = ""
+    /// Local draft so we don't write the Keychain + rebuild the client on every
+    /// keystroke; committed on submit / Done / dismiss.
+    @State private var apiKeyDraft = ""
+
+    private func commitAPIKey() {
+        if apiKeyDraft != appState.apiKey { appState.apiKey = apiKeyDraft }
+    }
 
     var body: some View {
         NavigationStack {
@@ -56,9 +63,11 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { commitAPIKey(); dismiss() }
                 }
             }
+            .onAppear { apiKeyDraft = appState.apiKey }
+            .onDisappear { commitAPIKey() }   // safety net if dismissed by swipe
         }
     }
 
@@ -67,9 +76,11 @@ struct SettingsView: View {
     @ViewBuilder
     private var apiKeySection: some View {
         Section {
-            SecureField("X-API-Key", text: $appState.apiKey)
+            SecureField("Admin access code", text: $apiKeyDraft)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit { commitAPIKey() }
             if appState.hasAPIKey {
                 Button {
                     newKeyInput = ""
@@ -114,6 +125,7 @@ struct SettingsView: View {
                         Task {
                             if let newKey = await vm.rotateKey(newKey: newKeyInput, client: appState.client) {
                                 appState.apiKey = newKey   // persists to Keychain + rebuilds client
+                                apiKeyDraft = newKey        // keep the field in sync
                                 try? await Task.sleep(for: .seconds(1))
                                 showRotate = false
                             }
