@@ -10,7 +10,6 @@ final class ActivityVM: ObservableObject {
     @Published var scalpHasPositions = false
     @Published var marketOpen: Bool?
     @Published var trades: [[String: String]] = []
-    @Published var metrics: MetricsResponse?
     @Published var isLoading = false
     @Published var error: FriendlyError?
 
@@ -21,8 +20,7 @@ final class ActivityVM: ObservableObject {
         async let mtmTask: Void = loadMTM(client: client)
         async let tradesTask: Void = loadTrades(client: client)
         async let scalpTask: Void = loadScalp(client: client)
-        async let metricsTask: Void = loadMetrics(client: client)
-        _ = await (mtmTask, tradesTask, scalpTask, metricsTask)
+        _ = await (mtmTask, tradesTask, scalpTask)
     }
 
     private func loadMTM(client: APIClient) async {
@@ -48,9 +46,5 @@ final class ActivityVM: ObservableObject {
     private func loadScalp(client: APIClient) async {
         do { scalpHasPositions = try await client.scalpingMTM().hasOpenPositions }
         catch { scalpHasPositions = false }
-    }
-
-    private func loadMetrics(client: APIClient) async {
-        do { metrics = try await client.metrics() } catch { /* non-critical */ }
     }
 }

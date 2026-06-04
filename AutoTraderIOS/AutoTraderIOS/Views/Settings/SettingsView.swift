@@ -91,9 +91,9 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("API Key")
+            Text("Access code")
         } footer: {
-            Text("Required for engine create/start/stop/delete (mobile API v1). Stored in the device Keychain, sent as the X-API-Key header.")
+            Text("This code lets the app create and control your bots. Whoever set up your server gives it to you. It's stored securely on this device only.")
         }
         .sheet(isPresented: $showRotate) { rotateSheet }
     }

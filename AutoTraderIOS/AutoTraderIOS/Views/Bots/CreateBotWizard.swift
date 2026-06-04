@@ -52,10 +52,16 @@ struct CreateBotWizard: View {
                      help: "This is the strategy the bot follows. You can create more bots later.") {
             VStack(spacing: 12) {
                 ForEach(EngineStrategy.allCases) { s in
-                    Button { Haptics.tap(); vm.strategy = s } label: {
+                    Button {
+                        Haptics.tap(); vm.strategy = s
+                        withAnimation { step = 1 }   // auto-advance
+                    } label: {
                         styleCard(s, selected: vm.strategy == s)
                     }.buttonStyle(.plain)
                 }
+                Text("Not sure? **Range Income** is the gentlest place to start.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -67,7 +73,16 @@ struct CreateBotWizard: View {
                 .frame(width: 44, height: 44)
                 .background(selected ? Color.blue : Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(s.friendlyName).font(.headline)
+                HStack(spacing: 6) {
+                    Text(s.friendlyName).font(.headline)
+                    if s == .ironCondor {
+                        Text("Recommended")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Theme.profitGreen.opacity(0.18), in: Capsule())
+                            .foregroundStyle(Theme.profitGreen)
+                    }
+                }
                 Text(s.subtitle).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Text(s.risk.rawValue)
                     .font(.caption2.weight(.semibold))
@@ -88,12 +103,21 @@ struct CreateBotWizard: View {
 
     private var brokerStep: some View {
         stepScaffold(title: "Choose a broker",
-                     help: "The account that places the trades. Connect a broker any time from More → Brokers.") {
+                     help: "The account that places the trades. Practice mode works even if a broker isn't connected yet.") {
             VStack(spacing: 12) {
                 ForEach(EngineBroker.allCases) { b in
-                    Button { Haptics.tap(); vm.broker = b } label: {
-                        HStack {
-                            Text(b.displayName).font(.headline).foregroundStyle(.primary)
+                    let connected = brokerConnected(b.rawValue)
+                    Button {
+                        Haptics.tap(); vm.broker = b
+                        withAnimation { step = 2 }   // auto-advance
+                    } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(b.displayName).font(.headline).foregroundStyle(.primary)
+                                Text(connected ? "Connected" : "Not connected — Practice only")
+                                    .font(.caption)
+                                    .foregroundStyle(connected ? Theme.profitGreen : .secondary)
+                            }
                             Spacer()
                             Image(systemName: vm.broker == b ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(vm.broker == b ? .blue : .secondary)
@@ -103,8 +127,16 @@ struct CreateBotWizard: View {
                         .glassCard()
                     }.buttonStyle(.plain)
                 }
+                Text("You can connect a broker later from More → Brokers.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private func brokerConnected(_ id: String) -> Bool {
+        let v = appState.serverStatus?.tokens?[id] ?? ""
+        return v.contains("updated") || v.contains("loaded") || v.contains("active")
     }
 
     private var nameStep: some View {

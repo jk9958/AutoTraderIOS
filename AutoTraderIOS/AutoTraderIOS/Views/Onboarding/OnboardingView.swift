@@ -42,22 +42,27 @@ struct OnboardingView: View {
     }
 
     private var connectServer: some View {
-        page(icon: "server.rack", tint: .indigo, title: "Connect to your server") {
-            Text("Your bots run on a server. Enter its address and your **admin access code** (used to make changes).")
+        page(icon: "key.fill", tint: .indigo, title: "Enter your access code") {
+            Text("To create and run bots, you need an **admin access code**. Whoever set up your server gives you this.")
                 .foregroundStyle(.secondary)
-            VStack(spacing: 12) {
+            SecureField("Admin access code", text: $apiKey)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Text("Don't have one yet? You can skip and still look around in Practice mode — add it later in Settings.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+
+            DisclosureGroup("Advanced: server address") {
                 TextField("https://your-server.com", text: $serverURL)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                SecureField("Admin access code (optional now)", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
+                Text("Most people can leave this as-is.")
+                    .font(.caption).foregroundStyle(.tertiary)
             }
-            Text("You can add or change these later in Settings.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            .font(.subheadline)
         }
     }
 

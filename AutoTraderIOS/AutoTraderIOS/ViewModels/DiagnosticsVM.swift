@@ -25,7 +25,7 @@ enum DiagnosticsCopy {
         switch raw {
         case "brokers":             return "Broker connection"
         case "engines":             return "Bots"
-        case "dashboard_processes": return "Background services"
+        case "dashboard_processes": return "Trading services"
         default:                     return raw.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }

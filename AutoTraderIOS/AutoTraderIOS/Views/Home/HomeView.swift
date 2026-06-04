@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var showCreate = false
     @State private var showSettings = false
     @State private var showDiagnostics = false
+    @State private var showBrokers = false
 
     private var store: EnginesStore { appState.enginesStore }
 
@@ -58,6 +59,7 @@ struct HomeView: View {
                 CreateBotWizard { Task { await store.refresh() } }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showBrokers) { BrokersView() }
             .navigationDestination(isPresented: $showDiagnostics) { DiagnosticsView() }
         }
     }
@@ -109,7 +111,7 @@ struct HomeView: View {
             }
             HStack(spacing: 10) {
                 Button { Haptics.tap(); selection = .bots } label: {
-                    Label("Manage", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity)
+                    Label("Open", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
 
@@ -167,7 +169,7 @@ struct HomeView: View {
                     Text("\(sign)₹\(Int(abs(pnl)))")
                         .font(.title2.bold().monospacedDigit())
                         .foregroundStyle(pnl >= 0 ? Theme.profitGreen : Theme.lossRed)
-                    Text("Main engine")
+                    Text("Main account")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             } else {
@@ -178,9 +180,15 @@ struct HomeView: View {
     }
 
     private var brokerCard: some View {
-        statCard(title: "Broker", systemImage: "building.columns") {
-            StatusChip(status: brokerConnected ? .connected : .disconnected, compact: true)
+        Button { Haptics.tap(); showBrokers = true } label: {
+            statCard(title: "Broker", systemImage: "building.columns") {
+                StatusChip(status: brokerConnected ? .connected : .disconnected, compact: true)
+                Text(brokerConnected ? "Tap to manage" : "Tap to connect")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens broker connection")
     }
 
     // MARK: Alerts
@@ -203,7 +211,7 @@ struct HomeView: View {
     private func handle(_ alert: HomeAlert) {
         switch alert.kind {
         case .botNotResponding(let id): Task { await vm.restart(id, store: store) }
-        case .brokerDisconnected:       selection = .more
+        case .brokerDisconnected:       showBrokers = true
         case .systemWarning, .systemFailed: showDiagnostics = true
         }
     }

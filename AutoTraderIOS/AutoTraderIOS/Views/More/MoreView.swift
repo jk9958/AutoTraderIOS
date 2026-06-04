@@ -7,7 +7,7 @@ struct MoreView: View {
     @State private var sheet: MoreSheet?
 
     enum MoreSheet: Identifiable {
-        case brokers, logs, settings, manual, trend
+        case brokers, logs, settings, manual, trend, engine
         var id: Int { hashValue }
     }
 
@@ -26,6 +26,7 @@ struct MoreView: View {
                 }
 
                 Section {
+                    row("Engine controls", "gauge.with.needle", .teal) { sheet = .engine }
                     row("Manual trading", "slider.horizontal.3", .orange) { sheet = .manual }
                     row("Trend bot (advanced)", "brain.head.profile", .indigo) { sheet = .trend }
                 } header: {
@@ -43,9 +44,10 @@ struct MoreView: View {
             .navigationTitle("More")
             .sheet(item: $sheet) { which in
                 switch which {
-                case .brokers:  DashboardView()
+                case .brokers:  BrokersView()
                 case .logs:     LogsView()
                 case .settings: SettingsView()
+                case .engine:   DashboardView()
                 case .manual:   TradeView()
                 case .trend:    TrendAgentView()
                 }

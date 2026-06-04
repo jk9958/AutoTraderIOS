@@ -1,15 +1,14 @@
 import SwiftUI
-import Charts
 
-/// Activity tab — segmented into Positions (live P&L), Trades (history), and
-/// Performance. Plain-language empty states everywhere.
+/// Activity tab — segmented into Open (live P&L), History (past trades), and
+/// Stats (real results). Plain-language empty states everywhere.
 struct ActivityView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm = ActivityVM()
     @State private var segment: Segment = .positions
 
     enum Segment: String, CaseIterable, Identifiable {
-        case positions = "Positions", trades = "Trades", performance = "Performance"
+        case positions = "Open", trades = "History", performance = "Stats"
         var id: String { rawValue }
     }
 
@@ -92,38 +91,43 @@ struct ActivityView: View {
 
     @ViewBuilder
     private var performance: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                if let buckets = vm.metrics?.per5min, !buckets.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Server activity (last buckets)")
-                            .font(.subheadline.weight(.semibold))
-                        Chart(Array(buckets.enumerated()), id: \.offset) { idx, b in
-                            BarMark(x: .value("Bucket", idx), y: .value("Lines", b.lines ?? 0))
-                                .foregroundStyle(.blue)
-                        }
-                        .frame(height: 160)
-                        .accessibilityLabel("Server activity over the last \(buckets.count) time buckets")
-                        .accessibilityValue("\(vm.metrics?.totalLines ?? buckets.reduce(0) { $0 + ($1.lines ?? 0) }) log lines total")
-                        if let total = vm.metrics?.totalLines {
-                            Text("\(total) log lines total")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+        let stats = TradeStats(trades: vm.trades)
+        if stats.total == 0 {
+            empty(icon: "chart.bar",
+                  title: "No results yet",
+                  message: "Once your bots finish some trades, you'll see wins, losses, and total profit or loss here.")
+        } else {
+            ScrollView {
+                VStack(spacing: 14) {
+                    HStack(spacing: 12) {
+                        statTile("Total P&L", stats.totalInrText, stats.totalInr >= 0 ? Theme.profitGreen : Theme.lossRed)
+                        statTile("Trades", "\(stats.total)", .primary)
                     }
-                    .padding(16)
-                    .glassCard()
-
-                    infoCard("What is this?",
-                             "A simple measure of how busy the server has been. Detailed trade performance appears as your bots close trades.",
+                    HStack(spacing: 12) {
+                        statTile("Wins", "\(stats.wins)", Theme.profitGreen)
+                        statTile("Losses", "\(stats.losses)", Theme.lossRed)
+                    }
+                    if let wr = stats.winRateText {
+                        statTile("Win rate", wr, .blue).frame(maxWidth: .infinity)
+                    }
+                    infoCard("About these numbers",
+                             "Based on completed trades the server has recorded. Practice trades are included.",
                              "info.circle")
-                } else {
-                    empty(icon: "chart.bar",
-                          title: "No performance data yet",
-                          message: "Once your bots run and trade, summaries will appear here.")
                 }
+                .padding(16)
             }
-            .padding(16)
         }
+    }
+
+    private func statTile(_ title: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(value).font(.title2.bold().monospacedDigit()).foregroundStyle(color)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: Building blocks
@@ -153,6 +157,33 @@ struct ActivityView: View {
             Label(title, systemImage: icon)
         } description: { Text(message) }
         .frame(maxWidth: .infinity, minHeight: 320)
+    }
+}
+
+/// Summary stats computed client-side from the trade history (no server endpoint
+/// exists for this). A trade counts toward stats only if it has a recorded P&L.
+struct TradeStats {
+    let total: Int
+    let wins: Int
+    let losses: Int
+    let totalInr: Double
+
+    init(trades: [[String: String]]) {
+        var t = 0, w = 0, l = 0
+        var sum = 0.0
+        for trade in trades {
+            guard let pnl = Double(trade["pnl_rupees"] ?? trade["pnl_inr"] ?? "") else { continue }
+            t += 1
+            sum += pnl
+            if pnl >= 0 { w += 1 } else { l += 1 }
+        }
+        total = t; wins = w; losses = l; totalInr = sum
+    }
+
+    var totalInrText: String { "\(totalInr >= 0 ? "+" : "-")₹\(Int(abs(totalInr)))" }
+    var winRateText: String? {
+        guard total > 0 else { return nil }
+        return "\(Int((Double(wins) / Double(total)) * 100))%"
     }
 }
 
