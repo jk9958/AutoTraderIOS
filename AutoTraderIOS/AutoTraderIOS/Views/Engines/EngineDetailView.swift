@@ -1,19 +1,29 @@
 import SwiftUI
 
 /// Single-bot console: status, start/stop/restart, Practice-mode toggle (PATCH),
-/// broker login update (PUT), advanced config, and delete. Plain language throughout.
+/// broker login (one-tap Fyers OAuth that auto-fills the bot's token, or manual
+/// paste for other brokers), advanced config, and delete. Plain language throughout.
 struct EngineDetailView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm: EngineDetailVM
 
     @State private var showTokenSheet = false
     @State private var tokenInput = ""
+    @State private var showFyersAuth = false
+    @State private var fyersAuthURL: URL?
+    @State private var reconnecting = false
+    @State private var reconnectInfo: String?
 
     init(engineId: String) {
         _vm = StateObject(wrappedValue: EngineDetailVM(engineId: engineId))
     }
 
     private var canWrite: Bool { appState.hasAPIKey }
+
+    /// The broker this bot uses (drives whether one-tap OAuth reconnect is offered).
+    private var botBroker: EngineBroker {
+        EngineBroker(rawValue: (vm.status.value?.broker ?? "").lowercased()) ?? .fyers
+    }
 
     var body: some View {
         List {
@@ -28,6 +38,15 @@ struct EngineDetailView: View {
         .refreshable { await vm.refresh(client: appState.client) }
         .overlay(alignment: .bottom) { bannerView }
         .sheet(isPresented: $showTokenSheet) { tokenSheet }
+        .sheet(isPresented: $showFyersAuth) {
+            if let url = fyersAuthURL {
+                SafariView(url: url).ignoresSafeArea()
+                    .onDisappear { Task { await finishFyersReconnect() } }
+            }
+        }
+        .alert("Broker login", isPresented: Binding(get: { reconnectInfo != nil }, set: { if !$0 { reconnectInfo = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(reconnectInfo ?? "") }
     }
 
     // MARK: Status
@@ -113,10 +132,7 @@ struct EngineDetailView: View {
                     }
                     .disabled(!canWrite || vm.savingConfig)
                 }
-                Button { tokenInput = ""; showTokenSheet = true } label: {
-                    Label("Update broker login", systemImage: "key.fill")
-                }
-                .disabled(!canWrite)
+                brokerLoginRows
 
                 DisclosureGroup("Advanced details") {
                     ForEach(cfg.sortedObjectRows, id: \.key) { row in
@@ -133,7 +149,9 @@ struct EngineDetailView: View {
         } header: {
             Text("Settings")
         } footer: {
-            Text("Changing Practice mode updates the bot. Restart it for the change to take effect.")
+            Text(botBroker == .fyers
+                 ? "Reconnect logs in with Fyers and updates this bot automatically. Restart the bot for changes to take effect."
+                 : "Broker logins expire daily. Update the login, then restart the bot.")
         }
     }
 
@@ -142,6 +160,58 @@ struct EngineDetailView: View {
               case .object(let params)? = root["params"],
               case .bool(let b)? = params["dry_run"] else { return nil }
         return b
+    }
+
+    // MARK: Broker login (one-tap OAuth for Fyers, manual paste otherwise)
+
+    @ViewBuilder
+    private var brokerLoginRows: some View {
+        if reconnecting {
+            HStack { ProgressView(); Text("Reconnecting…").foregroundStyle(.secondary) }
+        } else if botBroker == .fyers {
+            Button { startFyersReconnect() } label: {
+                Label("Reconnect with Fyers", systemImage: "arrow.clockwise.circle.fill")
+            }
+            .disabled(!canWrite)
+            Button { tokenInput = ""; showTokenSheet = true } label: {
+                Label("Paste token instead", systemImage: "key")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            .disabled(!canWrite)
+        } else {
+            Button { tokenInput = ""; showTokenSheet = true } label: {
+                Label("Update broker login", systemImage: "key.fill")
+            }
+            .disabled(!canWrite)
+        }
+    }
+
+    private func startFyersReconnect() {
+        do {
+            fyersAuthURL = try appState.client.fyersAuthURL()
+            showFyersAuth = true
+        } catch {
+            vm.banner = FriendlyError.from(error).message
+        }
+    }
+
+    /// After the Fyers web login closes, read the fresh token from /status and
+    /// write it into THIS bot's secrets (the bot reads its own secrets file).
+    private func finishFyersReconnect() async {
+        reconnecting = true
+        defer { reconnecting = false }
+        await appState.fetchStatus()
+        let token = appState.serverStatus?.fyersAccessToken ?? ""
+        guard !token.isEmpty else {
+            reconnectInfo = "The Fyers login didn't finish. Please try again."
+            return
+        }
+        if await vm.updateToken(token, client: appState.client) {
+            appState.enginesStore.invalidate(vm.engineId)
+            Analytics.shared.track(.brokerConnected(broker: "fyers"))
+            await vm.refresh(client: appState.client)
+            reconnectInfo = "Fyers reconnected for this bot. Restart it to use the new login."
+        }
     }
 
     // MARK: About + delete
