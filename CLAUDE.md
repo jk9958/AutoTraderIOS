@@ -4,6 +4,8 @@ Native SwiftUI (MVVM) iOS client for a FastAPI options-trading server. Controls 
 
 > This file is committed to the repo so any machine's agent gets the same context after `git pull`. Keep it updated when conventions or the API change.
 
+> **Active plan:** the novice-first UX redesign + full API integration roadmap lives in [`docs/PLAN_NOVICE_UX_AND_API.md`](docs/PLAN_NOVICE_UX_AND_API.md). To continue the work (incl. from Claude mobile after a session reset), start at that doc's §15, then §11 Milestone A.
+
 ## Server (source of truth)
 
 - **Backend repo:** `Auto_Option` (FastAPI). Lives beside this repo (`../Auto_Option`) on the primary dev machine; not present on every machine. Main API file: `src/api_server.py`.
