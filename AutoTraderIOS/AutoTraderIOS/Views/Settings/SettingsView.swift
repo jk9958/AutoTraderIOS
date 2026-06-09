@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var vm = SettingsVM()
     @Environment(\.dismiss) private var dismiss
+    @State private var revealKey = false
 
     var body: some View {
         NavigationStack {
@@ -17,6 +18,42 @@ struct SettingsView: View {
                     Text("Server URL")
                 } footer: {
                     Text("Base URL for the trading API server.")
+                }
+
+                Section {
+                    HStack {
+                        if revealKey {
+                            TextField("X-API-Key", text: $appState.apiKey)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .font(.system(.body, design: .monospaced))
+                        } else {
+                            SecureField("X-API-Key", text: $appState.apiKey)
+                                .textContentType(.password)
+                        }
+                        Button {
+                            revealKey.toggle()
+                        } label: {
+                            Image(systemName: revealKey ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                    LabeledContent("Status") {
+                        Text(appState.hasAPIKey ? appState.maskedAPIKey : "Not set")
+                            .foregroundStyle(appState.hasAPIKey ? Color.secondary : Color.orange)
+                            .font(.system(.subheadline, design: .monospaced))
+                    }
+                    NavigationLink {
+                        RotateKeyView()
+                    } label: {
+                        Label("Rotate API Key", systemImage: "key.horizontal")
+                    }
+                    .disabled(!appState.hasAPIKey)
+                } header: {
+                    Text("API Key")
+                } footer: {
+                    Text("Required for engine launch, stop, and other write actions. Stored securely in the Keychain.")
                 }
 
                 Section {

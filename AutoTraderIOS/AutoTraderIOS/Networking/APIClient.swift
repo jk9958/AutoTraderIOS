@@ -3,6 +3,8 @@ import os.log
 
 struct APIClient {
     let baseURL: String
+    /// X-API-Key sent on every request. Empty string == not configured.
+    var apiKey: String = ""
     private static let logger = Logger(subsystem: "com.autotrader.ios", category: "API")
 
     private static let pollTimeout: TimeInterval = 60
@@ -134,13 +136,119 @@ struct APIClient {
         return try decode(MarginResponse.self, from: data)
     }
 
+    // MARK: - v2 Engines
+
+    func launchEngine(_ req: LaunchRequest) async throws -> LaunchResponse {
+        Self.logger.debug("→ POST /api/v2/engines/launch")
+        var urlReq = try urlRequest("/api/v2/engines/launch", method: "POST", timeout: Self.actionTimeout)
+        urlReq.httpBody = try JSONEncoder().encode(req)
+        let (data, response) = try await perform(urlReq)
+        try validate(response, data: data)
+        return try decode(LaunchResponse.self, from: data)
+    }
+
+    func stopEngine(id: String) async throws -> StopResponse {
+        Self.logger.debug("→ POST /api/v2/engines/\(id)/stop")
+        var req = try urlRequest("/api/v2/engines/\(id)/stop", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = Data()
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(StopResponse.self, from: data)
+    }
+
+    func engines() async throws -> [EngineHeartbeat] {
+        Self.logger.debug("→ GET /api/v1/engines")
+        let (data, response) = try await fetch("/api/v1/engines", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(EnginesResponse.self, from: data).engines
+    }
+
+    // MARK: - Health (deep)
+
+    func healthDeep() async throws -> HealthDeepResponse {
+        Self.logger.debug("→ GET /health/deep")
+        let (data, response) = try await fetch("/health/deep", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(HealthDeepResponse.self, from: data)
+    }
+
+    // MARK: - Broker health
+
+    func brokerHealth() async throws -> BrokerHealthResponse {
+        Self.logger.debug("→ GET /api/v2/broker-health")
+        let (data, response) = try await fetch("/api/v2/broker-health", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(BrokerHealthResponse.self, from: data)
+    }
+
+    // MARK: - Logs (files / broker API)
+
+    func brokerApiLog(lines: Int = 100) async throws -> LogsResponse {
+        Self.logger.debug("→ GET /logs/api?lines=\(lines)")
+        let url = try queryURL("/logs/api", [URLQueryItem(name: "lines", value: String(lines))])
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogsResponse.self, from: data)
+    }
+
+    func logFiles() async throws -> LogFilesResponse {
+        Self.logger.debug("→ GET /logs/files")
+        let (data, response) = try await fetch("/logs/files", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogFilesResponse.self, from: data)
+    }
+
+    func logFile(name: String, lines: Int = 300) async throws -> LogFileResponse {
+        Self.logger.debug("→ GET /logs/file?name=\(name)")
+        let url = try queryURL("/logs/file", [
+            URLQueryItem(name: "name", value: name),
+            URLQueryItem(name: "lines", value: String(lines)),
+        ])
+        let (data, response) = try await performURL(url, timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(LogFileResponse.self, from: data)
+    }
+
+    // MARK: - Alerts
+
+    func alerts() async throws -> [Alert] {
+        Self.logger.debug("→ GET /api/v2/alerts")
+        let (data, response) = try await fetch("/api/v2/alerts", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(AlertsResponse.self, from: data).alerts
+    }
+
+    // MARK: - API key rotation
+
+    func rotateApiKey(newKey: String) async throws {
+        Self.logger.debug("→ PUT /api/v1/config/api-key")
+        var req = try urlRequest("/api/v1/config/api-key", method: "PUT", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(["api_key": newKey])
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+    }
+
     // MARK: - Auth URL
 
     func fyersAuthURL() throws -> URL {
-        guard let url = URL(string: baseURL + "/auth/fyers") else {
+        try authURL(broker: "fyers")
+    }
+
+    func authURL(broker: String) throws -> URL {
+        guard let url = URL(string: baseURL + "/auth/\(broker)") else {
             throw APIError.wrongBaseURL(url: baseURL)
         }
         return url
+    }
+
+    /// Tradesmart exchanges an auth code (not a bare access token).
+    func exchangeTradesmart(authCode: String) async throws -> TokenResponse {
+        Self.logger.debug("→ POST /token/tradesmart/exchange")
+        var req = try urlRequest("/token/tradesmart/exchange", method: "POST", timeout: Self.actionTimeout)
+        req.httpBody = try JSONEncoder().encode(["auth_code": authCode])
+        let (data, response) = try await perform(req)
+        try validate(response, data: data)
+        return try decode(TokenResponse.self, from: data)
     }
 
     // MARK: - Private
@@ -150,6 +258,15 @@ struct APIClient {
             throw APIError.wrongBaseURL(url: baseURL)
         }
         return try await performURL(url, timeout: timeout)
+    }
+
+    private func queryURL(_ path: String, _ items: [URLQueryItem]) throws -> URL {
+        guard var comps = URLComponents(string: baseURL + path) else {
+            throw APIError.wrongBaseURL(url: baseURL)
+        }
+        comps.queryItems = items
+        guard let url = comps.url else { throw APIError.wrongBaseURL(url: baseURL) }
+        return url
     }
 
     private func performURL(_ url: URL, timeout: TimeInterval) async throws -> (Data, URLResponse) {
@@ -169,6 +286,10 @@ struct APIClient {
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        var request = request
+        if !apiKey.isEmpty {
+            request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        }
         let session = Self.makeSession()
         defer { session.finishTasksAndInvalidate() }
         do {
@@ -204,6 +325,20 @@ struct APIClient {
         guard !(200...299).contains(http.statusCode) else { return }
 
         switch http.statusCode {
+        case 401:
+            Self.logger.error("✗ Unauthorized — bad or missing API key")
+            throw APIError.unauthorized
+        case 503:
+            var detail = ""
+            if let data {
+                struct StringDetail: Decodable { let detail: String }
+                detail = (try? Self.decoder.decode(StringDetail.self, from: data))?.detail ?? ""
+            }
+            if detail.localizedCaseInsensitiveContains("API_KEY") {
+                Self.logger.error("✗ Server API key not configured")
+                throw APIError.serverKeyNotConfigured
+            }
+            throw APIError.httpError(statusCode: 503, detail: detail)
         case 409:
             Self.logger.error("✗ Engine already running")
             throw APIError.engineAlreadyRunning

@@ -17,8 +17,25 @@ final class AppState: ObservableObject {
             let sanitized = Self.sanitizeURL(serverBaseURL)
             if sanitized != serverBaseURL { serverBaseURL = sanitized; return }
             UserDefaults.standard.set(serverBaseURL, forKey: "serverBaseURL")
-            client = APIClient(baseURL: serverBaseURL)
+            rebuildClient()
         }
+    }
+
+    /// X-API-Key, stored in the Keychain (never UserDefaults).
+    @Published var apiKey: String {
+        didSet {
+            KeychainHelper.apiKey = apiKey
+            rebuildClient()
+        }
+    }
+
+    var hasAPIKey: Bool { !apiKey.isEmpty }
+    var maskedAPIKey: String { KeychainHelper.masked(apiKey) }
+
+    private func rebuildClient() {
+        var c = APIClient(baseURL: serverBaseURL)
+        c.apiKey = apiKey
+        client = c
     }
 
     private static func sanitizeURL(_ raw: String) -> String {
@@ -36,8 +53,12 @@ final class AppState: ObservableObject {
     init() {
         let stored = UserDefaults.standard.string(forKey: "serverBaseURL") ?? ""
         let url = stored.isEmpty ? "https://trader.allweatheralgo.com" : Self.sanitizeURL(stored)
+        let key = KeychainHelper.apiKey ?? ""
         self.serverBaseURL = url
-        self.client = APIClient(baseURL: url)
+        self.apiKey = key
+        var c = APIClient(baseURL: url)
+        c.apiKey = key
+        self.client = c
         startLifecycleObservers()
     }
 
