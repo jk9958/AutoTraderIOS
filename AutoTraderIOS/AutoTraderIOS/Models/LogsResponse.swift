@@ -1,7 +1,7 @@
 import Foundation
 
 struct LogsResponse: Codable {
-    let source: String
+    let source: String?   // /logs has it; /logs/api does not
     let lines: [String]
 }
 

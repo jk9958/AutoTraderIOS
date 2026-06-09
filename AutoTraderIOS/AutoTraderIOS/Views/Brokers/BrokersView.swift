@@ -81,10 +81,10 @@ private struct BrokerCard<Content: View>: View {
                 statusPill
             }
         } footer: {
-            if let exp = status?.expiresAt {
-                Text("Token expires: \(exp)")
-            } else if let upd = status?.updatedAt {
-                Text("Updated: \(upd)")
+            if let preview = status?.tokenPreview, !preview.isEmpty {
+                Text("Token: \(preview)")
+            } else if status?.isValid == false {
+                Text("No valid token.")
             }
         }
     }

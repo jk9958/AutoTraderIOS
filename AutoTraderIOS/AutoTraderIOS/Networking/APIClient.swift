@@ -138,29 +138,38 @@ struct APIClient {
 
     // MARK: - v2 Engines
 
-    func launchEngine(_ req: LaunchRequest) async throws -> LaunchResponse {
+    /// Launch is fire-and-forget: v2 returns `{ok, data}` we don't need. We only
+    /// care that the request was accepted (2xx), so the body is not decoded.
+    func launchEngine(_ req: LaunchRequest) async throws {
         Self.logger.debug("→ POST /api/v2/engines/launch")
         var urlReq = try urlRequest("/api/v2/engines/launch", method: "POST", timeout: Self.actionTimeout)
         urlReq.httpBody = try JSONEncoder().encode(req)
         let (data, response) = try await perform(urlReq)
         try validate(response, data: data)
-        return try decode(LaunchResponse.self, from: data)
     }
 
-    func stopEngine(id: String) async throws -> StopResponse {
+    func stopEngine(id: String) async throws {
         Self.logger.debug("→ POST /api/v2/engines/\(id)/stop")
         var req = try urlRequest("/api/v2/engines/\(id)/stop", method: "POST", timeout: Self.actionTimeout)
         req.httpBody = Data()
         let (data, response) = try await perform(req)
         try validate(response, data: data)
-        return try decode(StopResponse.self, from: data)
     }
 
     func engines() async throws -> [EngineHeartbeat] {
-        Self.logger.debug("→ GET /api/v1/engines")
-        let (data, response) = try await fetch("/api/v1/engines", timeout: Self.pollTimeout)
+        Self.logger.debug("→ GET /api/v2/engines")
+        let (data, response) = try await fetch("/api/v2/engines", timeout: Self.pollTimeout)
         try validate(response, data: data)
         return try decode(EnginesResponse.self, from: data).engines
+    }
+
+    // MARK: - P&L (v2)
+
+    func pnlDaily() async throws -> [PnLDay] {
+        Self.logger.debug("→ GET /api/v2/pnl/daily")
+        let (data, response) = try await fetch("/api/v2/pnl/daily", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+        return try decode(PnLDailyResponse.self, from: data).data
     }
 
     // MARK: - Health (deep)

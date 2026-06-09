@@ -19,12 +19,19 @@ final class PnLVM: ObservableObject {
 
     var winRate: Double { totalTrades == 0 ? 0 : Double(wins) / Double(totalTrades) }
 
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     func load(appState: AppState) async {
         isLoading = true
         defer { isLoading = false }
         do {
-            let trades = try await appState.client.trades().trades
-            process(trades)
+            let days = try await appState.client.pnlDaily()
+            process(days)
             error = nil
         } catch let err as APIError {
             error = err.errorDescription
@@ -33,63 +40,17 @@ final class PnLVM: ObservableObject {
         }
     }
 
-    private func process(_ trades: [[String: AnyCodable]]) {
-        totalTrades = trades.count
-        wins = 0
-        totalPnL = 0
-        var byDay: [Date: Double] = [:]
-        let cal = Calendar.current
-
-        for t in trades {
-            let pnl = Self.pnl(t)
-            totalPnL += pnl
-            if pnl > 0 { wins += 1 }
-            let day = cal.startOfDay(for: Self.date(t) ?? Date())
-            byDay[day, default: 0] += pnl
-        }
+    private func process(_ days: [PnLDay]) {
+        let sorted = days.sorted { $0.date < $1.date }
+        totalTrades = sorted.reduce(0) { $0 + ($1.trades ?? 0) }
+        wins = sorted.reduce(0) { $0 + ($1.winners ?? 0) }
+        totalPnL = sorted.reduce(0) { $0 + ($1.pnlInr ?? 0) }
 
         var running: Double = 0
-        daily = byDay.keys.sorted().map { day in
-            running += byDay[day]!
-            return DailyPnL(day: day, pnl: byDay[day]!, cumulative: running)
+        daily = sorted.compactMap { d in
+            guard let date = Self.dayFormatter.date(from: d.date) else { return nil }
+            running += d.pnlInr ?? 0
+            return DailyPnL(day: date, pnl: d.pnlInr ?? 0, cumulative: running)
         }
-    }
-
-    // MARK: - Defensive field extraction
-
-    private static let pnlKeys = ["pnl", "realized_pnl", "net_pnl", "profit", "pl", "p_l"]
-    private static let dateKeys = ["exit_time", "exit_timestamp", "timestamp", "date", "entry_time", "time"]
-
-    private static func pnl(_ t: [String: AnyCodable]) -> Double {
-        for k in pnlKeys {
-            if let v = t[k] {
-                switch v {
-                case .double(let d): return d
-                case .int(let i): return Double(i)
-                case .string(let s): if let d = Double(s) { return d }
-                default: break
-                }
-            }
-        }
-        return 0
-    }
-
-    private static func date(_ t: [String: AnyCodable]) -> Date? {
-        for k in dateKeys {
-            if case .string(let s)? = t[k], let d = parseDate(s) { return d }
-        }
-        return nil
-    }
-
-    private static let formatters: [DateFormatter] = {
-        ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "yyyyMMdd"].map {
-            let f = DateFormatter(); f.dateFormat = $0; f.locale = Locale(identifier: "en_US_POSIX"); return f
-        }
-    }()
-
-    private static func parseDate(_ s: String) -> Date? {
-        if let iso = ISO8601DateFormatter().date(from: s) { return iso }
-        for f in formatters { if let d = f.date(from: s) { return d } }
-        return nil
     }
 }

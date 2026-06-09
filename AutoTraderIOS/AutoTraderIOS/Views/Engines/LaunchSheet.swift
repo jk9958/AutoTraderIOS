@@ -71,10 +71,7 @@ final class LaunchVM: ObservableObject {
         if strategy.isIronCondor {
             return LaunchRequest(
                 strategy: strategy.rawValue, broker: broker.rawValue, dryRun: dryRun,
-                instrument: instrument.rawValue, expiry: expiry?.fyers, lots: lots,
-                spreadPts: spreadPts, wingPts: wingPts,
-                profitTarget: profitTarget, slMultiplier: slMultiplier,
-                entryStart: entryStart, entryCutoff: entryCutoff, eodExit: eodExit
+                instrument: instrument.rawValue, expiry: expiry?.fyers, lots: lots
             )
         }
         return LaunchRequest(strategy: strategy.rawValue, broker: broker.rawValue, dryRun: dryRun)

@@ -11,6 +11,9 @@ struct EngineHeartbeat: Decodable, Identifiable, Hashable {
     let strategy: String?
     let broker: String?
     let dryRun: Bool?
+    let symbol: String?
+    let todayPnlInr: Double?
+    let openPositions: Int?
 
     var id: String { engineId }
 
@@ -37,7 +40,8 @@ enum EngineState {
     }
 }
 
-/// `GET /api/v1/engines` may return either a bare array or `{ "engines": [...] }`.
+/// Engine list. `/api/v2/engines` returns `{ ok, data: [...], meta }`;
+/// `/api/v1/engines` returns `{ ok, engines: [...] }`; some builds return a bare array.
 struct EnginesResponse: Decodable {
     let engines: [EngineHeartbeat]
 
@@ -48,8 +52,12 @@ struct EnginesResponse: Decodable {
             return
         }
         let keyed = try decoder.container(keyedBy: CodingKeys.self)
-        engines = try keyed.decodeIfPresent([EngineHeartbeat].self, forKey: .engines) ?? []
+        if let data = try? keyed.decode([EngineHeartbeat].self, forKey: .data) {
+            engines = data
+        } else {
+            engines = (try? keyed.decode([EngineHeartbeat].self, forKey: .engines)) ?? []
+        }
     }
 
-    enum CodingKeys: String, CodingKey { case engines }
+    enum CodingKeys: String, CodingKey { case data, engines }
 }

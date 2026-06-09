@@ -22,8 +22,12 @@ final class AppState: ObservableObject {
     }
 
     /// X-API-Key, stored in the Keychain (never UserDefaults).
+    /// Always trimmed: the server compares the header byte-for-byte, so a pasted
+    /// trailing newline/space would otherwise cause a 401.
     @Published var apiKey: String {
         didSet {
+            let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed != apiKey { apiKey = trimmed; return }
             KeychainHelper.apiKey = apiKey
             rebuildClient()
         }
@@ -53,7 +57,7 @@ final class AppState: ObservableObject {
     init() {
         let stored = UserDefaults.standard.string(forKey: "serverBaseURL") ?? ""
         let url = stored.isEmpty ? "https://trader.allweatheralgo.com" : Self.sanitizeURL(stored)
-        let key = KeychainHelper.apiKey ?? ""
+        let key = (KeychainHelper.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         self.serverBaseURL = url
         self.apiKey = key
         var c = APIClient(baseURL: url)

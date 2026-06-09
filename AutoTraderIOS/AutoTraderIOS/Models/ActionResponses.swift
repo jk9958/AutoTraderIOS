@@ -51,40 +51,39 @@ struct IronCondorParams: Encodable {
 
 /// Body for `POST /api/v2/engines/launch`. Encoded with a *plain* JSONEncoder,
 /// so it NEEDS explicit snake_case CodingKeys (per the project decode convention).
+/// Matches the live `POST /api/v2/engines/launch` body exactly.
 struct LaunchRequest: Encodable {
     var strategy: String          // "iron-condor" | "vix-scalp" | "trend"
     var broker: String            // "fyers" | "kite" | "tradesmart"
     var dryRun: Bool = true
 
-    // Iron Condor only (all optional)
+    // Iron Condor only
     var instrument: String?       // "nifty" | "sensex"
     var expiry: String?
     var lots: Int?
-    var spreadPts: Int?
-    var wingPts: Int?
-    var profitTarget: Double?
-    var slMultiplier: Double?
-    var entryStart: String?
-    var entryCutoff: String?
-    var eodExit: String?
+    var riskPct: Double?
 
     enum CodingKeys: String, CodingKey {
         case strategy, broker, instrument, expiry, lots
         case dryRun = "dry_run"
-        case spreadPts = "spread_pts"
-        case wingPts = "wing_pts"
-        case profitTarget = "profit_target"
-        case slMultiplier = "sl_multiplier"
-        case entryStart = "entry_start"
-        case entryCutoff = "entry_cutoff"
-        case eodExit = "eod_exit"
+        case riskPct = "risk_pct"
     }
 }
 
-struct LaunchResponse: Decodable {
-    let status: String?
-    let engineId: String?
-    let message: String?
+// MARK: - P&L (v2)
+
+/// `GET /api/v2/pnl/daily` → `{ ok, data: [{date, pnl_inr, trades, winners, losers}], meta }`
+struct PnLDailyResponse: Decodable {
+    let data: [PnLDay]
+}
+
+struct PnLDay: Decodable, Identifiable, Hashable {
+    let date: String
+    let pnlInr: Double?
+    let trades: Int?
+    let winners: Int?
+    let losers: Int?
+    var id: String { date }
 }
 
 // MARK: - Health (deep)
@@ -108,7 +107,8 @@ struct HealthDeepResponse: Decodable {
         }
     }
 
-    /// Component value may be a string, a bool, or an object `{ ok, reason }`.
+    /// Component value is typically `{ "status": "HEALTHY"|"DEGRADED"|…, "reason": <string|object> }`,
+    /// but may also be a bare bool or string. `reason` can itself be an object — collapsed to nil then.
     private struct HealthRaw: Decodable {
         let ok: Bool?
         let reasonText: String?
@@ -117,17 +117,22 @@ struct HealthDeepResponse: Decodable {
             if let b = try? c.decode(Bool.self) { ok = b; reasonText = nil; return }
             if let s = try? c.decode(String.self) {
                 reasonText = s
-                ok = s.localizedCaseInsensitiveContains("ok") || s.localizedCaseInsensitiveContains("up")
+                ok = Self.healthy(s)
                 return
             }
             let keyed = try decoder.container(keyedBy: DynamicKey.self)
-            ok = try? keyed.decode(Bool.self, forKey: DynamicKey(stringValue: "ok")!)
-            // reason can itself be an object — collapse to a short string.
-            if let r = try? keyed.decode(String.self, forKey: DynamicKey(stringValue: "reason")!) {
-                reasonText = r
+            if let status = try? keyed.decode(String.self, forKey: DynamicKey(stringValue: "status")!) {
+                ok = Self.healthy(status)
             } else {
-                reasonText = nil
+                ok = try? keyed.decode(Bool.self, forKey: DynamicKey(stringValue: "ok")!)
             }
+            // reason may be a string or an object — keep only the string form.
+            reasonText = try? keyed.decode(String.self, forKey: DynamicKey(stringValue: "reason")!)
+        }
+
+        static func healthy(_ s: String) -> Bool {
+            let u = s.uppercased()
+            return u.contains("HEALTH") || u == "OK" || u == "UP"
         }
     }
 }
@@ -152,10 +157,14 @@ struct AlertsResponse: Decodable {
             return
         }
         let keyed = try decoder.container(keyedBy: CodingKeys.self)
-        alerts = try keyed.decodeIfPresent([Alert].self, forKey: .alerts) ?? []
+        if let data = try? keyed.decode([Alert].self, forKey: .data) {
+            alerts = data
+        } else {
+            alerts = (try? keyed.decode([Alert].self, forKey: .alerts)) ?? []
+        }
     }
 
-    enum CodingKeys: String, CodingKey { case alerts }
+    enum CodingKeys: String, CodingKey { case data, alerts }
 }
 
 struct Alert: Decodable, Identifiable, Hashable {
