@@ -3,19 +3,21 @@ import Combine
 
 @MainActor
 final class LaunchVM: ObservableObject {
+    // rawValue must match the server's _LAUNCH_STRATEGIES set (underscores).
     enum Strategy: String, CaseIterable, Identifiable {
-        case ironCondor = "iron-condor"
-        case vixScalp = "vix-scalp"
+        case ironCondor = "iron_condor"
+        case vixScalp = "vix_scalp"
         case trend = "trend"
         var id: String { rawValue }
         var label: String {
             switch self {
             case .ironCondor: return "Iron Condor"
             case .vixScalp: return "VIX Scalp"
-            case .trend: return "Trend"
+            case .trend: return "Option Buying (VSA)"
             }
         }
         var isIronCondor: Bool { self == .ironCondor }
+        var isTrend: Bool { self == .trend }
     }
 
     enum Broker: String, CaseIterable, Identifiable {
@@ -28,6 +30,36 @@ final class LaunchVM: ObservableObject {
         case nifty, sensex
         var id: String { rawValue }
         var label: String { rawValue.uppercased() }
+    }
+
+    // MARK: Option Buying (VSA) tunables
+
+    enum Timeframe: String, CaseIterable, Identifiable {
+        case m5 = "5m", m15 = "15m", h1 = "1h"
+        var id: String { rawValue }
+        var label: String { self == .m15 ? "15m (best)" : rawValue }
+    }
+
+    enum EntryMode: String, CaseIterable, Identifiable {
+        case weighted, vsaStrict = "vsa_strict"
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .weighted: return "Weighted composite"
+            case .vsaStrict: return "VSA strict (backtest)"
+            }
+        }
+    }
+
+    enum ExitMode: String, CaseIterable, Identifiable {
+        case premium, pointsTime = "points_time"
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .premium: return "Premium SL/T1/T2"
+            case .pointsTime: return "Points-stop + Time"
+            }
+        }
     }
 
     @Published var strategy: Strategy = .ironCondor
@@ -45,6 +77,20 @@ final class LaunchVM: ObservableObject {
     @Published var entryStart = "09:30"
     @Published var entryCutoff = "11:00"
     @Published var eodExit = "15:15"
+
+    // Option Buying (VSA) — defaults mirror the web dashboard
+    @Published var vsaTimeframe: Timeframe = .m15
+    @Published var minConfidence = 0.55
+    @Published var capital = 200_000.0
+    @Published var maxIvRank = 70.0
+    @Published var scanInterval = 300
+    @Published var maxTrades = 2
+    @Published var adaptive = false
+    @Published var entryMode: EntryMode = .weighted
+    @Published var exitMode: ExitMode = .premium
+    @Published var pointsStop = 25.0
+    @Published var maxHoldMinutes = 40
+    @Published var vsaExpiry = ""   // blank = auto-select weekly
 
     // Launch state
     @Published var isLaunching = false
@@ -73,6 +119,26 @@ final class LaunchVM: ObservableObject {
                 strategy: strategy.rawValue, broker: broker.rawValue, dryRun: dryRun,
                 instrument: instrument.rawValue, expiry: expiry?.fyers, lots: lots
             )
+        }
+        if strategy.isTrend {
+            var req = LaunchRequest(strategy: strategy.rawValue, broker: broker.rawValue, dryRun: dryRun)
+            req.instrument = instrument.rawValue
+            req.vsaTimeframe = vsaTimeframe.rawValue
+            req.minConfidence = minConfidence
+            req.capital = capital
+            req.maxIvRank = maxIvRank
+            req.scanInterval = scanInterval
+            req.maxTrades = maxTrades
+            req.adaptive = adaptive
+            req.entryMode = entryMode.rawValue
+            req.exitMode = exitMode.rawValue
+            if exitMode == .pointsTime {
+                req.pointsStop = pointsStop
+                req.maxHoldMinutes = maxHoldMinutes
+            }
+            let exp = vsaExpiry.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            if !exp.isEmpty { req.expiry = exp }
+            return req
         }
         return LaunchRequest(strategy: strategy.rawValue, broker: broker.rawValue, dryRun: dryRun)
     }
@@ -179,6 +245,61 @@ struct LaunchSheet: View {
                         }
                         if let e = vm.marginError {
                             Text(e).font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                if vm.strategy.isTrend {
+                    Section("Contract") {
+                        Picker("Instrument", selection: $vm.instrument) {
+                            ForEach(LaunchVM.Instrument.allCases) { Text($0.label).tag($0) }
+                        }
+                        TextField("Expiry (blank = auto)", text: $vm.vsaExpiry)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.characters)
+                    }
+
+                    Section("VSA Option-Buying") {
+                        Picker("Timeframe", selection: $vm.vsaTimeframe) {
+                            ForEach(LaunchVM.Timeframe.allCases) { Text($0.label).tag($0) }
+                        }
+                        LabeledContent("Min confidence") {
+                            Text(String(format: "%.2f", vm.minConfidence))
+                        }
+                        Slider(value: $vm.minConfidence, in: 0...1, step: 0.05)
+                        Stepper("Capital: ₹\(Int(vm.capital))", value: $vm.capital, in: 10_000...10_000_000, step: 10_000)
+                        LabeledContent("Max IV rank") {
+                            Text(vm.maxIvRank >= 100 ? "Off" : String(format: "%.0f", vm.maxIvRank))
+                        }
+                        Slider(value: $vm.maxIvRank, in: 0...100, step: 5)
+                        Stepper("Scan interval: \(vm.scanInterval)s", value: $vm.scanInterval, in: 30...3600, step: 30)
+                        Stepper("Max trades: \(vm.maxTrades)", value: $vm.maxTrades, in: 1...10)
+                        Picker("Entry mode", selection: $vm.entryMode) {
+                            ForEach(LaunchVM.EntryMode.allCases) { Text($0.label).tag($0) }
+                        }
+                        Picker("Exit mode", selection: $vm.exitMode) {
+                            ForEach(LaunchVM.ExitMode.allCases) { Text($0.label).tag($0) }
+                        }
+                        Toggle("Adaptive (self-learning)", isOn: $vm.adaptive)
+                    }
+
+                    if vm.exitMode == .pointsTime {
+                        Section("Points + Time Exit") {
+                            Stepper("Points stop: \(Int(vm.pointsStop)) pts", value: $vm.pointsStop, in: 1...200, step: 1)
+                            Stepper("Max hold: \(vm.maxHoldMinutes) min", value: $vm.maxHoldMinutes, in: 5...375, step: 5)
+                        }
+                    }
+
+                    Section {
+                        Text(vm.exitMode == .pointsTime
+                             ? "Trades VSA no_supply_test + healthy_move only. Points+time exit (no profit target) — backtested PF ~2.0 on 5m: stop 25pts / 40min."
+                             : "Trades VSA no_supply_test + healthy_move only; high IV rank blocks buys. Premium exit uses SL 35% / target 60%.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if vm.entryMode == .vsaStrict {
+                            Text("VSA-strict: enters only when a whitelisted pattern agrees with the EMA 8/21 trend. For the validated edge use 5m · min-confidence 0.40 · Points-stop + Time · 25 / 40.")
+                                .font(.caption)
+                                .foregroundStyle(Theme.blue)
                         }
                     }
                 }

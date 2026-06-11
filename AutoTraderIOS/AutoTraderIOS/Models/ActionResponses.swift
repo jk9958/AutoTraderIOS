@@ -53,20 +53,42 @@ struct IronCondorParams: Encodable {
 /// so it NEEDS explicit snake_case CodingKeys (per the project decode convention).
 /// Matches the live `POST /api/v2/engines/launch` body exactly.
 struct LaunchRequest: Encodable {
-    var strategy: String          // "iron-condor" | "vix-scalp" | "trend"
+    var strategy: String          // "iron_condor" | "vix_scalp" | "trend"
     var broker: String            // "fyers" | "kite" | "tradesmart"
     var dryRun: Bool = true
 
-    // Iron Condor only
+    // Iron Condor (instrument/expiry also used by Trend)
     var instrument: String?       // "nifty" | "sensex"
-    var expiry: String?
+    var expiry: String?           // Trend: optional override, blank = auto
     var lots: Int?
     var riskPct: Double?
 
+    // Trend / VSA option-buying tunables. nil → omitted (server applies defaults).
+    var capital: Double?
+    var minConfidence: Double?
+    var vsaTimeframe: String?     // "5m" | "15m" | "1h"
+    var maxIvRank: Double?
+    var scanInterval: Int?
+    var maxTrades: Int?
+    var adaptive: Bool?
+    var exitMode: String?         // "premium" | "points_time"
+    var pointsStop: Double?
+    var maxHoldMinutes: Int?
+    var entryMode: String?        // "weighted" | "vsa_strict"
+
     enum CodingKeys: String, CodingKey {
-        case strategy, broker, instrument, expiry, lots
+        case strategy, broker, instrument, expiry, lots, capital, adaptive
         case dryRun = "dry_run"
         case riskPct = "risk_pct"
+        case minConfidence = "min_confidence"
+        case vsaTimeframe = "vsa_timeframe"
+        case maxIvRank = "max_iv_rank"
+        case scanInterval = "scan_interval"
+        case maxTrades = "max_trades"
+        case exitMode = "exit_mode"
+        case pointsStop = "points_stop"
+        case maxHoldMinutes = "max_hold_minutes"
+        case entryMode = "entry_mode"
     }
 }
 
