@@ -6,158 +6,152 @@ struct LogsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.isLoading && vm.lines.isEmpty {
-                    loadingView
-                } else if vm.lines.isEmpty {
-                    emptyView
-                } else {
-                    logContent
+            VStack(spacing: 0) {
+                Picker("Source", selection: $vm.tab) {
+                    ForEach(LogsVM.Tab.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+
+                switch vm.tab {
+                case .engine: engineLogs
+                case .brokerApi: brokerApiLogs
                 }
             }
             .navigationTitle("Logs")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarItems }
-            .onChange(of: vm.lineCount) { _, _ in vm.refresh(client: appState.client) }
-            .onAppear { vm.startPolling(client: appState.client) }
-            .onDisappear { vm.stopPolling() }
+            .task(id: vm.tab) { await loadForTab() }
+            .onDisappear { vm.stopAll() }
+            .onChange(of: vm.selectedDate) { _, _ in
+                vm.setEngineLive(false, client: appState.client)
+                Task { await vm.loadFiles(client: appState.client) }
+            }
+            .onChange(of: vm.selectedFile) { _, _ in
+                Task { await vm.loadSelectedFile(client: appState.client) }
+            }
         }
     }
 
-    // MARK: - Log Content
+    private func loadForTab() async {
+        switch vm.tab {
+        case .engine: await vm.loadFiles(client: appState.client)
+        case .brokerApi: await vm.loadBrokerApi(client: appState.client)
+        }
+    }
 
-    private var logContent: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(vm.lines.enumerated()), id: \.offset) { idx, line in
-                        LogLine(index: idx, text: line)
+    // MARK: - Engine Logs
+
+    private var engineLogs: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 8) {
+                DatePicker(
+                    "Date", selection: $vm.selectedDate,
+                    in: ...Date(), displayedComponents: .date
+                )
+                if !vm.files.isEmpty {
+                    Picker("File", selection: $vm.selectedFile) {
+                        ForEach(vm.files) { file in
+                            Text(file.name).tag(Optional(file))
+                        }
+                    }
+                }
+                if Calendar.current.isDateInToday(vm.selectedDate) {
+                    Toggle("Live (5s)", isOn: Binding(
+                        get: { vm.engineLive },
+                        set: { vm.setEngineLive($0, client: appState.client) }
+                    ))
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
+            logViewer(lines: vm.lines, numbered: true)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await vm.loadSelectedFile(client: appState.client) }
+                } label: { Image(systemName: "arrow.clockwise") }
+            }
+        }
+    }
+
+    // MARK: - Broker API Logs
+
+    private var brokerApiLogs: some View {
+        VStack(spacing: 0) {
+            Toggle("Live (5s)", isOn: Binding(
+                get: { vm.apiLive },
+                set: { vm.setApiLive($0, client: appState.client) }
+            ))
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
+            logViewer(lines: vm.apiLines, numbered: false)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await vm.loadBrokerApi(client: appState.client) }
+                } label: { Image(systemName: "arrow.clockwise") }
+            }
+        }
+    }
+
+    // MARK: - Shared viewer
+
+    @ViewBuilder
+    private func logViewer(lines: [String], numbered: Bool) -> some View {
+        if vm.isLoading && lines.isEmpty {
+            VStack { ProgressView(); Text("Loading…").font(.caption).foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let err = vm.error, lines.isEmpty {
+            ContentUnavailableView("Couldn't load logs", systemImage: "exclamationmark.triangle", description: Text(err))
+        } else if lines.isEmpty {
+            ContentUnavailableView("No log lines", systemImage: "doc.text")
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(lines.enumerated()), id: \.offset) { idx, line in
+                            HStack(alignment: .top, spacing: 8) {
+                                if numbered {
+                                    Text(String(format: "%04d", idx + 1))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                        .frame(width: 32, alignment: .trailing)
+                                }
+                                Text(line)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(lineColor(line))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 12)
+                            .background(idx % 2 == 0 ? Color.clear : Color.white.opacity(0.03))
                             .id(idx)
+                        }
                     }
                 }
-                .padding(.vertical, 8)
-            }
-            .background(Color(uiColor: .systemBackground))
-            .onChange(of: vm.lines.count) { _, _ in
-                if vm.autoscroll, let last = vm.lines.indices.last {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(last, anchor: .bottom)
+                .onChange(of: lines.count) { _, _ in
+                    if vm.autoscroll, numbered, let last = lines.indices.last {
+                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                     }
                 }
             }
         }
     }
 
-    // MARK: - States
-
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView().scaleEffect(1.2)
-            Text("Loading logs…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var emptyView: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 48, weight: .thin))
-                .foregroundStyle(.secondary)
-            Text("No Logs Yet")
-                .font(.title3.weight(.semibold))
-            Text("Engine activity will stream here")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarItems: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            Picker("Log type", selection: Binding(
-                get: { vm.logType },
-                set: { vm.switchType(to: $0, client: appState.client) }
-            )) {
-                ForEach(LogType.allCases, id: \.self) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 140)
-        }
-
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
-            Button {
-                vm.autoscroll.toggle()
-                Haptics.tap()
-            } label: {
-                Image(systemName: "arrow.down.to.line.compact")
-                    .foregroundStyle(vm.autoscroll ? Color.green : Color.secondary)
-            }
-
-            Menu {
-                Picker("Lines", selection: $vm.lineCount) {
-                    Text("50 lines").tag(50)
-                    Text("100 lines").tag(100)
-                    Text("200 lines").tag(200)
-                    Text("500 lines").tag(500)
-                }
-                Divider()
-                Button(role: .destructive) {
-                    vm.clearLogs(client: appState.client)
-                } label: {
-                    Label("Clear Logs", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-            }
-
-            Button {
-                vm.refresh(client: appState.client)
-            } label: {
-                if vm.isClearing {
-                    ProgressView().progressViewStyle(.circular).scaleEffect(0.8)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Log Line Row
-
-private struct LogLine: View {
-    let index: Int
-    let text: String
-
-    private var color: Color {
-        let l = text.lowercased()
+    private func lineColor(_ line: String) -> Color {
+        let l = line.lowercased()
+        if l.contains("resp") && (l.contains(" 4") || l.contains(" 5") || l.contains("error")) { return .red }
         if l.contains("error") || l.contains("critical") { return .red }
-        if l.contains("warn")                             { return .orange }
+        if l.contains("warn") { return .orange }
+        if l.contains("resp") && l.contains(" 2") { return .green }
+        if l.contains("req") { return .primary }
         if l.contains("entry") || l.contains("exit") || l.contains("order") { return .green }
         return .primary
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(String(format: "%04d", index + 1))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.quaternary)
-                .frame(width: 34, alignment: .trailing)
-                .padding(.top, 1)
-            Text(text)
-                .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(color)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-        }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 10)
     }
 }

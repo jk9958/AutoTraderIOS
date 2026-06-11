@@ -5,21 +5,42 @@ enum TestConnectionResult {
     case none, testing, success, failure(String)
 }
 
+enum RotateState: Equatable {
+    case idle, rotating, success, failure(String)
+}
+
 @MainActor
 final class SettingsVM: ObservableObject {
     @Published var testResult: TestConnectionResult = .none
+    @Published var rotateState: RotateState = .idle
 
-    // API-key rotation
-    @Published var isRotating = false
-    @Published var rotateMessage: String?
-    @Published var rotateFailed = false
-
-    func testConnection(client: APIClient) async {
+    /// Two-stage check: `/health` proves the server is reachable (it stays public
+    /// behind the login gate), then a gated endpoint proves the API key is
+    /// accepted. Without the second stage a missing/wrong key reports success.
+    func testConnection(client: APIClient, hasAPIKey: Bool) async {
         testResult = .testing
+        // 1) Reachability.
         do {
             try await client.health()
+        } catch let err as APIError {
+            testResult = .failure(err.errorDescription ?? "Unknown error")
+            Haptics.error()
+            return
+        } catch {
+            testResult = .failure(error.localizedDescription)
+            Haptics.error()
+            return
+        }
+        // 2) Auth — the login gate 401s every other endpoint without a valid key.
+        do {
+            try await client.verifyAuth()
             testResult = .success
             Haptics.success()
+        } catch APIError.unauthorized {
+            testResult = .failure(hasAPIKey
+                ? "Server reachable, but the API key was rejected (401)."
+                : "Server reachable, but it requires an API key.")
+            Haptics.error()
         } catch let err as APIError {
             testResult = .failure(err.errorDescription ?? "Unknown error")
             Haptics.error()
@@ -29,33 +50,25 @@ final class SettingsVM: ObservableObject {
         }
     }
 
-    /// Rotate the server API key. On success, returns the new key so the caller
-    /// can persist it locally (the old key is invalid immediately after).
-    func rotateKey(newKey: String, client: APIClient) async -> String? {
-        guard EngineValidation.isValidApiKey(newKey) else {
-            rotateFailed = true
-            rotateMessage = "New key must be at least 12 characters."
-            return nil
+    /// Rotates the server key, then persists it locally (caller updates Keychain via AppState).
+    func rotate(newKey: String, appState: AppState) async {
+        let trimmed = newKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 12 else {
+            rotateState = .failure("Key must be at least 12 characters.")
+            return
         }
-        isRotating = true
-        rotateFailed = false
-        rotateMessage = nil
-        defer { isRotating = false }
+        rotateState = .rotating
         do {
-            let resp = try await client.rotateApiKey(newKey: newKey)
-            rotateMessage = "Key rotated\(resp.updatedAt.map { " at \($0)" } ?? "")."
+            try await appState.client.rotateApiKey(newKey: trimmed)
+            appState.apiKey = trimmed   // updates Keychain + rebuilds client
+            rotateState = .success
             Haptics.success()
-            return newKey
         } catch let err as APIError {
-            rotateFailed = true
-            rotateMessage = err.errorDescription
+            rotateState = .failure(err.errorDescription ?? "Unknown error")
             Haptics.error()
-            return nil
         } catch {
-            rotateFailed = true
-            rotateMessage = error.localizedDescription
+            rotateState = .failure(error.localizedDescription)
             Haptics.error()
-            return nil
         }
     }
 }

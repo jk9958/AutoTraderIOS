@@ -1,101 +1,125 @@
 import SwiftUI
 
-/// Friendly broker connection screen. One tap to connect each broker via the
-/// secure web login (OAuth); clear Connected / Reconnect status. Replaces routing
-/// novices to the engineer dashboard.
 struct BrokersView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var vm = DashboardVM()
-    @Environment(\.dismiss) private var dismiss
-
-    private struct Broker: Identifiable {
-        let id: String
-        let name: String
-        let tint: Color
-    }
-    private let brokers: [Broker] = [
-        .init(id: "fyers", name: "Fyers", tint: .blue),
-        .init(id: "kite", name: "Zerodha (Kite)", tint: .purple),
-        .init(id: "tradesmart", name: "TradeSmart", tint: .indigo),
-    ]
+    @StateObject private var vm = BrokersVM()
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    ForEach(brokers) { broker in
-                        row(broker)
+                if let err = vm.loadError {
+                    Section { Text(err).font(.caption).foregroundStyle(.red) }
+                }
+                if let msg = vm.saveSuccess {
+                    Section { Label(msg, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.subheadline) }
+                }
+                if let err = vm.saveError {
+                    Section { Text(err).font(.caption).foregroundStyle(.red) }
+                }
+
+                // Fyers
+                BrokerCard(name: "Fyers", status: vm.status(for: "fyers")) {
+                    Button {
+                        vm.openFyersAuth(appState: appState)
+                    } label: {
+                        Label("Login with Fyers", systemImage: "person.badge.key")
                     }
-                } header: {
-                    Text("Your trading accounts")
-                } footer: {
-                    Text("A broker is the account that actually places trades. Logins expire at the end of each day, so you'll reconnect from time to time. You don't need a broker to use Practice mode.")
+                    TokenPasteField(
+                        placeholder: "Paste Fyers access token",
+                        text: $vm.fyersTokenInput,
+                        isSaving: vm.savingBroker == "fyers",
+                        onSave: { Task { await vm.saveFyersToken(appState: appState) } }
+                    )
+                }
+
+                // Kite
+                BrokerCard(name: "Kite", status: vm.status(for: "kite")) {
+                    TokenPasteField(
+                        placeholder: "Paste Kite access token",
+                        text: $vm.kiteTokenInput,
+                        isSaving: vm.savingBroker == "kite",
+                        onSave: { Task { await vm.saveKiteToken(appState: appState) } }
+                    )
+                }
+
+                // Tradesmart
+                BrokerCard(name: "Tradesmart", status: vm.status(for: "tradesmart")) {
+                    TokenPasteField(
+                        placeholder: "Paste Tradesmart auth code",
+                        text: $vm.tradesmartCodeInput,
+                        isSaving: vm.savingBroker == "tradesmart",
+                        onSave: { Task { await vm.exchangeTradesmart(appState: appState) } }
+                    )
                 }
             }
             .navigationTitle("Brokers")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
-            .task { await appState.fetchStatus() }
-            .sheet(isPresented: $vm.showFyersAuth) {
+            .refreshable { await vm.reload(appState: appState) }
+            .task { await vm.reload(appState: appState) }
+            .sheet(isPresented: $vm.showFyersAuth, onDismiss: {
+                Task { await vm.handleFyersAuthDismiss(appState: appState) }
+            }) {
                 if let url = vm.fyersAuthURL {
                     SafariView(url: url).ignoresSafeArea()
-                        .onDisappear { Task { await vm.handleFyersAuthDismiss(appState: appState); noteIfConnected("fyers") } }
                 }
             }
-            .sheet(isPresented: $vm.showKiteAuth) {
-                if let url = vm.kiteAuthURL {
-                    SafariView(url: url).ignoresSafeArea()
-                        .onDisappear { Task { await vm.handleKiteAuthDismiss(appState: appState); noteIfConnected("kite") } }
-                }
+        }
+    }
+}
+
+private struct BrokerCard<Content: View>: View {
+    let name: String
+    let status: BrokerStatus?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        Section {
+            content
+        } header: {
+            HStack {
+                Text(name)
+                Spacer()
+                statusPill
             }
-            .sheet(isPresented: $vm.showTradesmartAuth) {
-                if let url = vm.tradesmartAuthURL {
-                    SafariView(url: url).ignoresSafeArea()
-                        .onDisappear { Task { await vm.handleTradesmartAuthDismiss(appState: appState); noteIfConnected("tradesmart") } }
-                }
+        } footer: {
+            if let preview = status?.tokenPreview, !preview.isEmpty {
+                Text("Token: \(preview)")
+            } else if status?.isValid == false {
+                Text("No valid token.")
             }
-            .alert(vm.alertMessage ?? "", isPresented: $vm.showAlert) { Button("OK", role: .cancel) {} }
         }
     }
 
-    @ViewBuilder
-    private func row(_ broker: Broker) -> some View {
-        let connected = isConnected(broker.id)
-        HStack(spacing: 14) {
-            Image(systemName: "building.columns.fill")
-                .foregroundStyle(broker.tint)
-                .frame(width: 28)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(broker.name).font(.headline)
-                StatusChip(status: connected ? .connected : .disconnected, compact: true)
+    private var statusPill: some View {
+        let valid = status?.isValid ?? false
+        let label = status == nil ? "UNKNOWN" : (valid ? "VALID" : "EXPIRED")
+        let color: Color = status == nil ? Theme.textSecondary : (valid ? Theme.green : Theme.red)
+        return Text(label)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(color.opacity(0.18), in: Capsule())
+            .foregroundStyle(color)
+    }
+}
+
+private struct TokenPasteField: View {
+    let placeholder: String
+    @Binding var text: String
+    let isSaving: Bool
+    let onSave: () -> Void
+
+    var body: some View {
+        HStack {
+            TextField(placeholder, text: $text)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .font(.system(.callout, design: .monospaced))
+            Button {
+                onSave()
+            } label: {
+                if isSaving { ProgressView() } else { Text("Save") }
             }
-            Spacer()
-            Button(connected ? "Reconnect" : "Connect") { connect(broker.id) }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(connected ? .secondary : .blue)
+            .buttonStyle(.borderedProminent)
+            .disabled(isSaving || text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
-        .padding(.vertical, 4)
-    }
-
-    private func isConnected(_ id: String) -> Bool {
-        let v = appState.serverStatus?.tokens?[id] ?? ""
-        return v.contains("updated") || v.contains("loaded") || v.contains("active")
-    }
-
-    private func connect(_ id: String) {
-        switch id {
-        case "fyers":      vm.openFyersAuth(appState: appState)
-        case "kite":       vm.openKiteAuth(appState: appState)
-        case "tradesmart": vm.openTradesmartAuth(appState: appState)
-        default: break
-        }
-    }
-
-    private func noteIfConnected(_ id: String) {
-        if isConnected(id) { Analytics.shared.track(.brokerConnected(broker: id)) }
     }
 }

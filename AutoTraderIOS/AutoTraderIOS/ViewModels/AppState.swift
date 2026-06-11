@@ -21,21 +21,24 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Mobile API v1 write key (X-API-Key), persisted in the Keychain — never UserDefaults.
+    /// X-API-Key, stored in the Keychain (never UserDefaults).
+    /// Always trimmed: the server compares the header byte-for-byte, so a pasted
+    /// trailing newline/space would otherwise cause a 401.
     @Published var apiKey: String {
         didSet {
-            guard apiKey != oldValue else { return }
-            KeychainStore.set(apiKey, account: KeychainStore.apiKeyAccount)
+            let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed != apiKey { apiKey = trimmed; return }
+            KeychainHelper.apiKey = apiKey
             rebuildClient()
         }
     }
 
-    /// True when a write key is present, gating destructive UI affordances.
     var hasAPIKey: Bool { !apiKey.isEmpty }
+    var maskedAPIKey: String { KeychainHelper.masked(apiKey) }
 
     private func rebuildClient() {
         var c = APIClient(baseURL: serverBaseURL)
-        c.apiKey = apiKey.isEmpty ? nil : apiKey
+        c.apiKey = apiKey
         client = c
     }
 
@@ -48,41 +51,18 @@ final class AppState: ObservableObject {
 
     @Published private(set) var client: APIClient
 
-    /// Network reachability, mirrored from `NetworkMonitor` for views to observe.
-    @Published private(set) var isOnline = true
-
-    /// Single source of truth for the bot list, shared by all tabs.
-    let enginesStore: EnginesStore
-
-    private let networkMonitor = NetworkMonitor()
-    private var monitorCancellable: AnyCancellable?
-    private var storeCancellable: AnyCancellable?
     private var pollingTask: Task<Void, Never>?
     private var isFirstPollFailure = true
 
     init() {
         let stored = UserDefaults.standard.string(forKey: "serverBaseURL") ?? ""
         let url = stored.isEmpty ? "https://trader.allweatheralgo.com" : Self.sanitizeURL(stored)
-        let key = KeychainStore.get(account: KeychainStore.apiKeyAccount) ?? ""
+        let key = (KeychainHelper.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         self.serverBaseURL = url
         self.apiKey = key
         var c = APIClient(baseURL: url)
-        c.apiKey = key.isEmpty ? nil : key
+        c.apiKey = key
         self.client = c
-        self.isOnline = networkMonitor.isOnline
-
-        // The store resolves the latest client each call, so base-URL/key changes apply.
-        var clientBox: () -> APIClient = { c }
-        self.enginesStore = EnginesStore(service: { clientBox() })
-
-        monitorCancellable = networkMonitor.$isOnline
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] online in self?.isOnline = online }
-        // Re-emit when the shared store changes so views observing AppState refresh.
-        storeCancellable = enginesStore.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-        // Now that self is fully initialized, point the store at the live client.
-        clientBox = { [unowned self] in self.client }
         startLifecycleObservers()
     }
 
@@ -105,18 +85,16 @@ final class AppState: ObservableObject {
     // MARK: - Polling
 
     func startPolling() {
-        enginesStore.startPolling()
         guard pollingTask == nil else { return }
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.fetchStatus()
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(15))
             }
         }
     }
 
     func stopPolling() {
-        enginesStore.stopPolling()
         pollingTask?.cancel()
         pollingTask = nil
     }

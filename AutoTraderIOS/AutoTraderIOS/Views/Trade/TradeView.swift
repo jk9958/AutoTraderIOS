@@ -6,33 +6,36 @@ struct TradeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
+            List {
+                Section {
                     NavigationLink {
                         IronCondorDetailView(vm: vm)
                             .environmentObject(appState)
                     } label: {
-                        StrategyCard(
+                        strategyRow(
                             title: "Iron Condor",
                             subtitle: "Delta-neutral options spread",
                             icon: "arrow.left.and.right",
                             color: .blue
                         )
                     }
-                    .buttonStyle(.plain)
 
                     NavigationLink {
-                        VixScalpDetailView(vm: vm)
-                            .environmentObject(appState)
+                        SimpleStrategyView(
+                            title: "Scalping",
+                            dryRun: $vm.scalpingDryRun,
+                            vm: vm,
+                            onLaunch: { vm.launchScalping(appState: appState) }
+                        )
+                        .environmentObject(appState)
                     } label: {
-                        StrategyCard(
-                            title: "VIX Scalp",
-                            subtitle: "Intraday ATM PUT on VIX spike",
+                        strategyRow(
+                            title: "Scalping",
+                            subtitle: "Short-term momentum strategy",
                             icon: "bolt.fill",
                             color: .orange
                         )
                     }
-                    .buttonStyle(.plain)
 
                     NavigationLink {
                         SimpleStrategyView(
@@ -43,23 +46,22 @@ struct TradeView: View {
                         )
                         .environmentObject(appState)
                     } label: {
-                        StrategyCard(
+                        strategyRow(
                             title: "Options",
                             subtitle: "Directional options trading",
                             icon: "chart.line.uptrend.xyaxis",
                             color: .purple
                         )
                     }
-                    .buttonStyle(.plain)
+                } header: {
+                    Text("Strategies")
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Trade")
             .onAppear {
-                if let status = appState.serverStatus, let expiry = status.nextExpiry {
-                    vm.prefill(nextExpiry: expiry)
+                if let status = appState.serverStatus {
+                    vm.prefill(nextExpiry: status.nextExpiry)
                 }
             }
             .onChange(of: appState.serverStatus?.nextExpiry) { _, expiry in
@@ -67,160 +69,24 @@ struct TradeView: View {
             }
         }
     }
-}
 
-// MARK: - Strategy Card
-
-private struct StrategyCard: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(color.opacity(0.15))
-                    .frame(width: 48, height: 48)
-                Image(systemName: icon)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(color)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
+    private func strategyRow(title: String, subtitle: String, icon: String, color: Color) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .thinGlassCard()
-    }
-}
-
-// MARK: - VIX Scalp Detail
-
-private struct VixScalpDetailView: View {
-    @EnvironmentObject var appState: AppState
-    @ObservedObject var vm: TradeVM
-    private var engineRunning: Bool { appState.serverStatus?.running ?? false }
-
-    var body: some View {
-        Form {
-            Section("Position") {
-                Stepper("Lots: \(vm.vsLots)", value: $vm.vsLots, in: 1...50)
-            }
-
-            Section {
-                LabeledContent("Min VIX") {
-                    Text(String(format: "%.1f", vm.vsMinVix)).monospacedDigit()
-                }
-                Slider(value: $vm.vsMinVix, in: 10...30, step: 0.5).tint(.orange)
-                    .listRowSeparator(.hidden)
-
-                LabeledContent("VIX Spike") {
-                    Text(String(format: "%.1f%%", vm.vsVixSpikePct * 100)).monospacedDigit()
-                }
-                Slider(value: $vm.vsVixSpikePct, in: 0.005...0.05, step: 0.005).tint(.orange)
-                    .listRowSeparator(.hidden)
-
-                Stepper("Lookback: \(vm.vsVixLookback) candles (\(vm.vsVixLookback * 5)m)",
-                        value: $vm.vsVixLookback, in: 1...24)
-            } header: {
-                Text("VIX Trigger")
-            } footer: {
-                Text("Enter ATM PUT when VIX ≥ Min VIX and rises by the spike % over the lookback window (×5 min candles).")
-            }
-
-            Section {
-                LabeledContent("Profit Target") {
-                    Text(String(format: "%.0f%%", vm.vsProfitTarget * 100)).monospacedDigit()
-                }
-                Slider(value: $vm.vsProfitTarget, in: 0.1...1.0, step: 0.05).tint(.green)
-                    .listRowSeparator(.hidden)
-
-                LabeledContent("Stop Loss") {
-                    Text(String(format: "%.0f%%", vm.vsStopLoss * 100)).monospacedDigit()
-                }
-                Slider(value: $vm.vsStopLoss, in: 0.1...0.9, step: 0.05).tint(.red)
-                    .listRowSeparator(.hidden)
-            } header: {
-                Text("Exit")
-            }
-
-            Section {
-                Toggle(isOn: $vm.vixScalpDryRun) {
-                    Label("Dry Run", systemImage: "play.circle")
-                }
-                if !vm.vixScalpDryRun {
-                    Label("Live orders will be placed", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                }
-            } header: {
-                Text("Mode")
-            }
-
-            Section {
-                if engineRunning {
-                    Label("Stop the running engine first", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.footnote)
-                }
-                Button {
-                    vm.launchVixScalp(appState: appState)
-                } label: {
-                    HStack {
-                        Spacer()
-                        if vm.isLaunching {
-                            ProgressView().progressViewStyle(.circular)
-                                .tint(vm.vixScalpDryRun ? .blue : .red)
-                                .padding(.trailing, 6)
-                        }
-                        Text(vm.isLaunching ? "Launching…" : "Launch VIX Scalp")
-                            .foregroundStyle(vm.vixScalpDryRun ? .blue : .red)
-                        Spacer()
-                    }
-                }
-                .disabled(engineRunning || vm.isLaunching)
-
-                if let success = vm.launchSuccess {
-                    Label(success, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
-                }
-                if let err = vm.launchError {
-                    Label(err, systemImage: "exclamationmark.circle").foregroundStyle(.red).font(.caption)
-                }
-            } header: {
-                Text("Launch")
-            }
-        }
-        .navigationTitle("VIX Scalp")
-        .navigationBarTitleDisplayMode(.large)
-        .confirmationDialog(
-            "LIVE Mode — real orders will be placed",
-            isPresented: $vm.showLiveConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Place LIVE Orders", role: .destructive) {
-                Task { await vm.confirmLiveAction() }
-            }
-            Button("Cancel", role: .cancel) { vm.cancelLiveAction() }
+        } icon: {
+            Image(systemName: icon)
+                .foregroundStyle(color)
         }
     }
 }
 
-// MARK: - Simple Strategy Detail (Options)
+// MARK: - Simple Strategy Detail
 
 private struct SimpleStrategyView: View {
     @EnvironmentObject var appState: AppState
@@ -258,7 +124,8 @@ private struct SimpleStrategyView: View {
                     HStack {
                         Spacer()
                         if vm.isLaunching {
-                            ProgressView().progressViewStyle(.circular)
+                            ProgressView()
+                                .progressViewStyle(.circular)
                                 .tint(dryRun ? .blue : .red)
                                 .padding(.trailing, 6)
                         }
@@ -270,10 +137,14 @@ private struct SimpleStrategyView: View {
                 .disabled(engineRunning || vm.isLaunching)
 
                 if let success = vm.launchSuccess {
-                    Label(success, systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
+                    Label(success, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
                 }
                 if let err = vm.launchError {
-                    Label(err, systemImage: "exclamationmark.circle").foregroundStyle(.red).font(.caption)
+                    Label(err, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.red)
+                        .font(.caption)
                 }
             } header: {
                 Text("Launch")

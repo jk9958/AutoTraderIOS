@@ -69,5 +69,14 @@
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>AutoTrader needs local network access to connect to your trading server.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.autotrader.ios.health-refresh</string>
+    </array>
 </dict>
 </plist>

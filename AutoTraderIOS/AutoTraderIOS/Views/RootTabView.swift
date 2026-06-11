@@ -1,36 +1,40 @@
 import SwiftUI
 
-enum RootTab: Hashable {
-    case home, bots, activity, more
-}
-
 struct RootTabView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("didOnboard") private var didOnboard = false
-    @State private var selection: RootTab = .home
+    /// Set once the user opts to run against an unauthenticated server.
+    @AppStorage("skipKeyGate") private var skipKeyGate = false
 
     var body: some View {
-        TabView(selection: $selection) {
-            HomeView(selection: $selection)
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(RootTab.home)
-
-            BotsListView()
-                .tabItem { Label("Bots", systemImage: "server.rack") }
-                .tag(RootTab.bots)
-
-            ActivityView()
-                .tabItem { Label("Activity", systemImage: "chart.line.uptrend.xyaxis") }
-                .tag(RootTab.activity)
-
-            MoreView()
-                .tabItem { Label("More", systemImage: "ellipsis.circle") }
-                .tag(RootTab.more)
+        Group {
+            if appState.hasAPIKey || skipKeyGate {
+                tabs
+            } else {
+                SetupView(skipKeyGate: $skipKeyGate)
+            }
         }
-        .tint(.blue)
-        .onAppear { appState.startPolling() }   // app-scoped; leaf screens must not stop it
-        .fullScreenCover(isPresented: Binding(get: { !didOnboard }, set: { didOnboard = !$0 })) {
-            OnboardingView()
+        .tint(Theme.blue)
+        .preferredColorScheme(.dark)
+    }
+
+    private var tabs: some View {
+        TabView {
+            DashboardView()
+                .tabItem { Label("Status", systemImage: "gauge.with.needle") }
+            EnginesView()
+                .tabItem { Label("Engines", systemImage: "cpu") }
+            BrokersView()
+                .tabItem { Label("Brokers", systemImage: "link") }
+            PositionsView()
+                .tabItem { Label("Positions", systemImage: "chart.bar.fill") }
+            LogsView()
+                .tabItem { Label("Logs", systemImage: "doc.text.magnifyingglass") }
+            TradesView()
+                .tabItem { Label("Trades", systemImage: "list.bullet.rectangle") }
+            PnLView()
+                .tabItem { Label("P&L", systemImage: "chart.line.uptrend.xyaxis") }
+            AlertsView()
+                .tabItem { Label("Alerts", systemImage: "bell") }
         }
     }
 }
