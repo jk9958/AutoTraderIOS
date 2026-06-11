@@ -59,7 +59,7 @@ struct SettingsView: View {
                 Section {
                     Button {
                         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        Task { await vm.testConnection(client: appState.client) }
+                        Task { await vm.testConnection(client: appState.client, hasAPIKey: appState.hasAPIKey) }
                     } label: {
                         HStack {
                             Label("Test Connection", systemImage: "wifi.badge.checkmark.fill")

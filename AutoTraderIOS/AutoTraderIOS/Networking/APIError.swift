@@ -28,7 +28,7 @@ enum APIError: LocalizedError {
         case .engineAlreadyRunning:
             return "An engine is already running. Stop it first."
         case .unauthorized:
-            return "Unauthorized. Check the API key in Settings."
+            return "Unauthorized (401). The server requires a valid API key — set or fix it in Settings."
         case .serverKeyNotConfigured:
             return "The server has no API key configured. Set one with key rotation."
         case .decodingError:

@@ -2,8 +2,22 @@ import SwiftUI
 
 struct RootTabView: View {
     @EnvironmentObject var appState: AppState
+    /// Set once the user opts to run against an unauthenticated server.
+    @AppStorage("skipKeyGate") private var skipKeyGate = false
 
     var body: some View {
+        Group {
+            if appState.hasAPIKey || skipKeyGate {
+                tabs
+            } else {
+                SetupView(skipKeyGate: $skipKeyGate)
+            }
+        }
+        .tint(Theme.blue)
+        .preferredColorScheme(.dark)
+    }
+
+    private var tabs: some View {
         TabView {
             DashboardView()
                 .tabItem { Label("Status", systemImage: "gauge.with.needle") }
@@ -22,7 +36,5 @@ struct RootTabView: View {
             AlertsView()
                 .tabItem { Label("Alerts", systemImage: "bell") }
         }
-        .tint(Theme.blue)
-        .preferredColorScheme(.dark)
     }
 }

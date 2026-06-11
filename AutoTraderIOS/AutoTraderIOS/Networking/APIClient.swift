@@ -163,6 +163,17 @@ struct APIClient {
         return try decode(EnginesResponse.self, from: data).engines
     }
 
+    /// Probes a login-gated endpoint to confirm the API key is accepted.
+    /// `/health` is public, so it can't tell us whether the key works — this
+    /// hits a gated route and throws `.unauthorized` when the gate rejects us.
+    /// Status is validated but the body is not decoded, so it stays robust to
+    /// response-shape changes.
+    func verifyAuth() async throws {
+        Self.logger.debug("→ GET /api/v2/engines (auth probe)")
+        let (data, response) = try await fetch("/api/v2/engines", timeout: Self.pollTimeout)
+        try validate(response, data: data)
+    }
+
     // MARK: - P&L (v2)
 
     func pnlDaily() async throws -> [PnLDay] {
